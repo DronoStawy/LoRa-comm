@@ -20,15 +20,31 @@
   - encrypted messages ------------------------------------------------------ []
   - ACK for receiving message and changing channel/spreading factor --------- []
   - FHSS - frequency hopping ------------------------------------------------ []
-*/ 
+*/
 
 // include the library
+#include <Arduino.h>
 #include <RadioLib.h>
 #include <aes.hpp>
+#include <vector>
 
 // uncomment the following only on one
 // of the nodes to initiate the pings
 #define MODE_PIN 7
+
+#define MAX_USER_NAME_LENGTH 8
+#define MAX_MESSAGE_LENGTH 252 - MAX_USER_NAME_LENGTH // 256 byte max Lora packet size - 1 byte for id - 1 byte for length - 8 bytes for username - 1 byte for user name length
+
+struct message_packet
+{
+  uint8_t id; // 0 - ack message
+  uint8_t user_name_length;
+  char* user_name[MAX_USER_NAME_LENGTH];
+  uint8_t message_length;
+  char message[MAX_MESSAGE_LENGTH];
+};
+
+message_packet mp;
 
 // SX1262 has the following connections:
 // NSS pin:   10
@@ -50,6 +66,7 @@ int transmissionState = RADIOLIB_ERR_NONE;
 
 // flag to indicate transmission or reception state
 bool transmitFlag = false;
+bool transmitter = false;
 
 // flag to indicate that a packet was sent or received
 volatile bool operationDone = false;
@@ -80,6 +97,7 @@ void setup()
   pinMode(LED_BUILTIN, OUTPUT);
 
   Serial.begin(9600);
+  delay(3000);
 
   // initialize SX1262 with default settings
   Serial.print(F("[SX1262] Initializing ... "));
@@ -101,16 +119,19 @@ void setup()
   // set the function that will be called
   // when new packet is received
   radio.setDio1Action(setFlag);
-  
+
+  // Set output powet to 3dB
+  radio.setOutputPower(3);
+
   delay(100);
+
   if (digitalRead(MODE_PIN) == LOW)
   {
     digitalWrite(LED_BUILTIN, HIGH);
-    // send the first packet on this node
-    Serial.print(F("[SX1262] Sending first packet ... "));
-    transmissionState = radio.startTransmit("Hello World!");
-    transmitFlag = true;
+    transmitter = true;
+    operationDone = true;
   }
+
   else
   {
     // start listening for LoRa packets on this node
@@ -140,10 +161,24 @@ void loop()
     // reset flag
     operationDone = false;
 
-    if (transmitFlag)
+    if (transmitter)
     {
-      // the previous operation was transmission, listen for response
-      // print the result
+      Serial.print(F("[SX1262] Sending another packet ... "));
+      
+      mp.id = 1; // 1 - Text message 
+      char user_name[] = "user1";
+      char text[] = "Hello world!";
+
+      mp.user_name_length = strlen(user_name);
+      mp.message_length = strlen(text);
+      memcpy(mp.user_name, user_name, mp.user_name_length);
+      memcpy(mp.message, text, mp.message_length);
+
+      uint8_t *message = (uint8_t *)&mp;
+  
+      transmissionState = radio.transmit(message, sizeof(message_packet));
+      transmitFlag = true;
+
       if (transmissionState == RADIOLIB_ERR_NONE)
       {
         // packet was successfully sent
@@ -154,45 +189,52 @@ void loop()
         Serial.print(F("failed, code "));
         Serial.println(transmissionState);
       }
-
-      // listen for response
-      radio.startReceive();
-      transmitFlag = false;
+      delay(5000);
     }
+    
     else
     {
       // the previous operation was reception
       // print data and send another packet
-      String str;
-      int state = radio.readData(str);
+      uint8_t buf[sizeof(message_packet)];
+      int state = radio.readData(buf, 0);
 
       if (state == RADIOLIB_ERR_NONE)
       {
-        // packet was successfully received
-        Serial.println(F("[SX1262] Received packet!"));
 
-        // print data of the packet
-        Serial.print(F("[SX1262] Data:\t\t"));
-        Serial.println(str);
+        mp.id = buf[0];
+        mp.user_name_length = buf[1];
+        memcpy(mp.user_name, &buf[2], mp.user_name_length);
+        mp.message_length = buf[10];
+        memcpy(mp.message, &buf[11], mp.message_length);
+
+        // packet was successfully received
+        Serial.println("Packet received!");
+        Serial.print("Packet ID: ");
+        Serial.print(mp.id);
+        Serial.print(" User name length: ");
+        Serial.print(mp.user_name_length);
+        Serial.print(" User name: ");
+        Serial.print(mp.user_name);
+        Serial.print(" Message length: ");
+        Serial.print(mp.message_length);
+        Serial.print(" Message: ");
+        Serial.print(mp.message);
+        Serial.println();
 
         // print RSSI (Received Signal Strength Indicator)
-        Serial.print(F("[SX1262] RSSI:\t\t"));
-        Serial.print(radio.getRSSI());
-        Serial.println(F(" dBm"));
+        // Serial.print(F("[SX1262] RSSI:\t\t"));
+        // Serial.print(radio.getRSSI());
+        // Serial.println(F(" dBm"));
 
-        // print SNR (Signal-to-Noise Ratio)
-        Serial.print(F("[SX1262] SNR:\t\t"));
-        Serial.print(radio.getSNR());
-        Serial.println(F(" dB"));
+        // // print SNR (Signal-to-Noise Ratio)
+        // Serial.print(F("[SX1262] SNR:\t\t"));
+        // Serial.print(radio.getSNR());
+        // Serial.println(F(" dB"));
       }
-
-      // wait a second before transmitting again
-      delay(1000);
+      delay(10);
 
       // send another one
-      Serial.print(F("[SX1262] Sending another packet ... "));
-      transmissionState = radio.startTransmit("Testuje jak dluga wiadomosc moze byc wyslana. Moze sie uda, moze nie. Zobaczymy :) Test cyferek 1223341424123");
-      transmitFlag = true;
     }
   }
 }
