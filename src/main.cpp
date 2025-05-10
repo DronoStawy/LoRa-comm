@@ -37,14 +37,71 @@
 
 struct message_packet
 {
+public:
   uint8_t id; // 0 - ack message
   uint8_t user_name_length;
-  char* user_name[MAX_USER_NAME_LENGTH];
   uint8_t message_length;
-  char message[MAX_MESSAGE_LENGTH];
-};
+  char *user_name;
+  char *message;
+  ;
 
-message_packet mp;
+  message_packet(uint8_t id, const char *usr_name, const char *text)
+  {
+    this->id = id;
+    this->user_name_length = strlen(usr_name);
+    this->message_length = strlen(text);
+    user_name = (char *)malloc(user_name_length + 1);
+    message = (char *)malloc(message_length + 1);
+    // memcpy(user_name, usr_name, user_name_length);
+    // memcpy(message, text, message_length);
+    strcpy(user_name, usr_name);
+    strcpy(message, text);
+  }
+
+  message_packet(uint8_t *buf)
+  {
+    this->id = buf[0];
+    this->user_name_length = buf[1];
+    this->message_length = buf[2];
+    user_name = (char *)malloc(user_name_length + 1);
+    message = (char *)malloc(message_length + 1);
+    // memcpy(user_name, &buf[3], user_name_length);
+    // memcpy(message, &buf[3 + user_name_length], message_length);
+    memcpy(user_name, &buf[3], user_name_length);
+    memcpy(message, &buf[3 + user_name_length], message_length);
+    user_name[user_name_length] = '\0';
+    message[message_length] = '\0';
+  }
+
+  uint16_t getPacketSize() const
+  {
+    return 3 + user_name_length + message_length;
+  }
+
+  // Funkcja serializująca strukturę do tablicy bajtów
+  uint8_t *toByteArray() const
+  {
+    uint16_t total_size = getPacketSize();
+    uint8_t *buffer = (uint8_t *)malloc(total_size);
+
+    if (buffer != NULL)
+    {
+      // Zapisz nagłówek
+      buffer[0] = id;
+      buffer[1] = user_name_length;
+      buffer[2] = message_length;
+      memcpy(&buffer[3], user_name, user_name_length);
+      memcpy(&buffer[3 + user_name_length], message, message_length);
+    }
+    return buffer;
+  }
+
+  ~message_packet()
+  {
+    free(user_name);
+    free(message);
+  }
+};
 
 // SX1262 has the following connections:
 // NSS pin:   10
@@ -163,65 +220,53 @@ void loop()
 
     if (transmitter)
     {
-      Serial.print(F("[SX1262] Sending another packet ... "));
-      
-      mp.id = 1; // 1 - Text message 
-      char user_name[] = "user1";
-      char text[] = "Hello world!";
+      Serial.print(("[SX1262] Sending another packet ... \n"));
 
-      mp.user_name_length = strlen(user_name);
-      mp.message_length = strlen(text);
-      memcpy(mp.user_name, user_name, mp.user_name_length);
-      memcpy(mp.message, text, mp.message_length);
+      // create a packet
+      message_packet mp(1, "User_1", "Very long message that is going to be sent over the radio. This is a test message to check if the packet is being sent correctly and if the receiver can handle it. Let's see how it goes!");
+      Serial.println(mp.id);
+      Serial.println(mp.user_name);
+      Serial.println(mp.message);
 
-      uint8_t *message = (uint8_t *)&mp;
-  
-      transmissionState = radio.transmit(message, sizeof(message_packet));
-      transmitFlag = true;
+      uint8_t *message = mp.toByteArray();
+      uint8_t message_size = mp.getPacketSize();
+      // send the packet
+      transmissionState = radio.transmit(message, message_size);
+      free(message);
 
       if (transmissionState == RADIOLIB_ERR_NONE)
       {
         // packet was successfully sent
         Serial.println(F("transmission finished!"));
+        operationDone = true;
       }
       else
       {
         Serial.print(F("failed, code "));
         Serial.println(transmissionState);
       }
-      delay(5000);
+      delay(1000);
     }
-    
+
     else
     {
       // the previous operation was reception
       // print data and send another packet
-      uint8_t buf[sizeof(message_packet)];
-      int state = radio.readData(buf, 0);
+      uint8_t buf[255];
+      int state = radio.readData(buf, sizeof(buf));
 
       if (state == RADIOLIB_ERR_NONE)
       {
 
-        mp.id = buf[0];
-        mp.user_name_length = buf[1];
-        memcpy(mp.user_name, &buf[2], mp.user_name_length);
-        mp.message_length = buf[10];
-        memcpy(mp.message, &buf[11], mp.message_length);
+        message_packet mp(buf);
 
         // packet was successfully received
-        Serial.println("Packet received!");
-        Serial.print("Packet ID: ");
-        Serial.print(mp.id);
-        Serial.print(" User name length: ");
-        Serial.print(mp.user_name_length);
-        Serial.print(" User name: ");
-        Serial.print(mp.user_name);
-        Serial.print(" Message length: ");
-        Serial.print(mp.message_length);
-        Serial.print(" Message: ");
-        Serial.print(mp.message);
-        Serial.println();
-
+        Serial.println("=========================");
+        Serial.println(mp.id);
+        Serial.println(mp.user_name_length);
+        Serial.println(mp.message_length);
+        Serial.println(mp.user_name);
+        Serial.println(mp.message);
         // print RSSI (Received Signal Strength Indicator)
         // Serial.print(F("[SX1262] RSSI:\t\t"));
         // Serial.print(radio.getRSSI());
