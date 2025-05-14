@@ -1,0 +1,3 @@
+[submodule "PicoChat-pi-sdk/lib/RadioLib"]
+	path = PicoChat-pi-sdk/lib/RadioLib
+	url = https://github.com/jgromes/RadioLib.git
