@@ -77,3 +77,11 @@ FetchContent_MakeAvailable(RadioLib)
 
 pico_add_extra_outputs(PicoChat)
 
+# Linker for picoboot3
+set_property(TARGET ${CMAKE_PROJECT_NAME} APPEND_STRING PROPERTY LINK_FLAGS "-Wl,--print-memory-usage")
+
+if(${PICO_PLATFORM} STREQUAL "rp2040")
+  pico_set_linker_script(${CMAKE_PROJECT_NAME} ${CMAKE_SOURCE_DIR}/memmap_default_rp2040.ld)
+elseif(${PICO_PLATFORM} MATCHES "rp2350")
+  pico_set_linker_script(${CMAKE_PROJECT_NAME} ${CMAKE_SOURCE_DIR}/memmap_default_rp2350.ld)
+endif()
