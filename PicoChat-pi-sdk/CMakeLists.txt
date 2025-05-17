@@ -41,8 +41,14 @@ pico_set_program_name(PicoChat "PicoChat")
 pico_set_program_version(PicoChat "0.1")
 
 # Modify the below lines to enable/disable output over UART/USB
-pico_enable_stdio_uart(PicoChat 0)
+pico_enable_stdio_uart(PicoChat 1)
 pico_enable_stdio_usb(PicoChat 0)
+
+target_compile_definitions(PicoChat PRIVATE
+        PICO_DEFAULT_UART_BAUD_RATE=9600
+        PICO_DEFAULT_UART_TX_PIN=0
+        PICO_DEFAULT_UART_RX_PIN=1
+)
 
 # Add the standard library to the build
 target_link_libraries(PicoChat
@@ -78,10 +84,11 @@ FetchContent_MakeAvailable(RadioLib)
 pico_add_extra_outputs(PicoChat)
 
 # Linker for picoboot3
-set_property(TARGET ${CMAKE_PROJECT_NAME} APPEND_STRING PROPERTY LINK_FLAGS "-Wl,--print-memory-usage")
-
 if(${PICO_PLATFORM} STREQUAL "rp2040")
   pico_set_linker_script(${CMAKE_PROJECT_NAME} ${CMAKE_SOURCE_DIR}/memmap_default_rp2040.ld)
 elseif(${PICO_PLATFORM} MATCHES "rp2350")
   pico_set_linker_script(${CMAKE_PROJECT_NAME} ${CMAKE_SOURCE_DIR}/memmap_default_rp2350.ld)
 endif()
+
+set_property(TARGET ${CMAKE_PROJECT_NAME} APPEND_STRING PROPERTY LINK_FLAGS "-Wl,--print-memory-usage")
+

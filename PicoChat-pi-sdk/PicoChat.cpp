@@ -1,86 +1,62 @@
-/*
-  RadioLib Non-Arduino Raspberry Pi Pico library example
-
-  Licensed under the MIT License
-
-  Copyright (c) 2024 Cameron Goddard
-
-  Permission is hereby granted, free of charge, to any person obtaining a copy
-  of this software and associated documentation files (the "Software"), to deal
-  in the Software without restriction, including without limitation the rights
-  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-  copies of the Software, and to permit persons to whom the Software is
-  furnished to do so, subject to the following conditions:
-
-  The above copyright notice and this permission notice shall be included in all
-  copies or substantial portions of the Software.
-
-  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-  SOFTWARE.
-*/
-
-// define pins to be used
-#define SPI_PORT spi0
-#define SPI_MISO 4
-#define SPI_MOSI 3
-#define SPI_SCK 2
-
-#define RFM_NSS 26
-#define RFM_RST 22
-#define RFM_DIO0 14
-#define RFM_DIO1 15
-
 #include <pico/stdlib.h>
-
-// include the library
+#include "hardware/watchdog.h"
 #include <RadioLib.h>
-
-// include the hardware abstraction layer
 #include "hal/RPiPico/PicoHal.h"
+#include "packets/packets.hpp"
+
+#define LORA_SCK 14
+#define LORA_MISO 24
+#define LORA_MOSI 15
+#define LORA_CS 13
+#define LORA_RST 23
+#define LORA_DIO1 16
+#define LORA_BUSY 18
+#define LORA_ANT_SW 17
+
+#define MODE_PIN 7
 
 // create a new instance of the HAL class
-PicoHal* hal = new PicoHal(SPI_PORT, SPI_MISO, SPI_MOSI, SPI_SCK);
+PicoHal *hal = new PicoHal(spi1, LORA_MISO, LORA_MOSI, LORA_SCK);
+SX1262 radio = new Module(hal, LORA_CS, LORA_DIO1, LORA_RST, LORA_BUSY);
 
-// now we can create the radio module
-// NSS pin:  26
-// DIO0 pin:  14
-// RESET pin:  22
-// DIO1 pin:  15
-SX1276 radio = new Module(hal, RFM_NSS, RFM_DIO0, RFM_RST, RFM_DIO1);
+int main()
+{
+  stdio_init_all();
 
-int main() {
-  // initialize just like with Arduino
-  printf("[SX1276] Initializing ... ");
-  int state = radio.begin();
-  if (state != RADIOLIB_ERR_NONE) {
+  gpio_init(PICO_DEFAULT_LED_PIN);
+  gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
+  bool led_state = false;
+
+  printf("[SX1262] Initializing ... ");
+  int state = radio.begin(868.0, 125.0, 9, 7, RADIOLIB_SX126X_SYNC_WORD_PRIVATE, 14, 8, 0, true);
+  if (state != RADIOLIB_ERR_NONE)
+  {
     printf("failed, code %d\n", state);
-    return(1);
+    gpio_put(PICO_DEFAULT_LED_PIN, 1);
+    return state;
   }
   printf("success!\n");
 
-  // loop forever
-  for(;;) {
+  for (;;)
+  {
+    gpio_put(PICO_DEFAULT_LED_PIN, 1);
     // send a packet
-    printf("[SX1276] Transmitting packet ... ");
-    state = radio.transmit("Hello World!");
+    message_packet packet(1, "RP2040", "Hello from pico SDK!");
+    printf("[SX1262] Transmitting packet ... ");
+    state = radio.transmit(packet.toByteArray(), packet.getPacketSize());
     if(state == RADIOLIB_ERR_NONE) {
       // the packet was successfully transmitted
       printf("success!\n");
 
       // wait for a second before transmitting again
-      hal->delay(1000);
+      gpio_put(PICO_DEFAULT_LED_PIN, 0);
+      hal->delay(2000);
 
     } else {
       printf("failed, code %d\n", state);
 
     }
-
   }
 
-  return(0);
+  return (0);
 }
