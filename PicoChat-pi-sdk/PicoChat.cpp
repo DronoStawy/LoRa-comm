@@ -3,6 +3,7 @@
 #include <RadioLib.h>
 #include "hal/RPiPico/PicoHal.h"
 #include "packets/packets.hpp"
+#include <aes.hpp>
 
 #define LORA_SCK 14
 #define LORA_MISO 24
