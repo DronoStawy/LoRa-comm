@@ -28,8 +28,10 @@
 
 #define MODE_PIN 7
 
+#define MAX_CHAT_USERS 4
 // Set ACK timeout to 2 seconds
 #define ACK_TIMEOUT_MS 2000
+#define USER_STATUS_TIMEOUT_MS 5000
 
 // ACK timing variables
 uint32_t curr_ack_check_time = 0;
@@ -49,6 +51,8 @@ bool waiting_for_ack_flag = false;
 bool sending_packet_flag = false;
 bool sending_ack_flag = false;
 
+chat_user users[MAX_CHAT_USERS];
+
 void intFlag()
 {
   interrupt_flag = true;
@@ -56,8 +60,10 @@ void intFlag()
 
 // Function prototypes
 int radioInit();
-int sendMessage(char *usr_name, char *message);
 int checkState(int state);
+int checkUserList(char *usr_name);
+void updateUserStatus(char *usr_name);
+void updateUserList();
 
 int main()
 {
@@ -96,8 +102,11 @@ int main()
           printf("Packet id: %s\n", packet.id);
           printf("User name: %s\n", packet.user_name);
 
-          if(packet.id == PACKET_TYPE_HEARTBEAT){
+          if (packet.id == PACKET_TYPE_HEARTBEAT)
+          {
             printf("Heartbeat received from %s\n", packet.user_name);
+            // Check if the user is already in the list
+            updateUserStatus(packet.user_name);
             interrupt_flag = false;
             stage = IDLE;
             waiting_for_packet_flag = false;
@@ -137,6 +146,7 @@ int main()
     default:
       break;
     }
+    updateUserList();
   }
   return (0);
 }
@@ -152,17 +162,9 @@ int radioInit()
     return state;
   }
   printf("success!\n");
-  return RADIOLIB_ERR_NONE;
-
   radio.setDio1Action(intFlag);
   radio.setOutputPower(0);
-}
-
-int sendMessage(char *usr_name, char *message)
-{
-  // create a new packet
-  chat_packet packet(PACKET_TYPE_MESSAGE, usr_name, message);
-  radio.transmit(packet.toByteArray(), packet.getPacketSize());
+  return RADIOLIB_ERR_NONE;
 }
 
 int checkState(int state)
@@ -175,4 +177,49 @@ int checkState(int state)
   }
   printf("success!\n");
   return RADIOLIB_ERR_NONE;
+}
+
+int checkUserList(char *usr_name)
+{
+  for (int i = 0; i < MAX_CHAT_USERS; i++)
+  {
+    if (strcmp(users[i].user_name, usr_name) == 0)
+    {
+      return i;
+    }
+  }
+  return -1;
+}
+
+void updateUserStatus(char* usr_name)
+{
+  int index = checkUserList(usr_name);
+  if(index == -1){
+    for (int i = 0; i < MAX_CHAT_USERS; i++)
+    {
+      if (users[i].user_name[0] == '\0')
+      {
+        strcpy(users[i].user_name, usr_name);
+        break;
+      }
+    }
+  }
+  else
+  {
+    // User already exists in the list, update the timestamp and status
+    users[index].last_seen = to_ms_since_boot(get_absolute_time());
+    users[index].is_active = true;
+  }
+}
+
+void updateUserList()
+{
+  uint32_t current_time = to_ms_since_boot(get_absolute_time());
+  for (int i = 0; i < MAX_CHAT_USERS; i++)
+  {
+    if (users[i].is_active && (current_time - users[i].last_seen) > USER_STATUS_TIMEOUT_MS)
+    {
+      users[i].is_active = false;
+    }
+  }
 }

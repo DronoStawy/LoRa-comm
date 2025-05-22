@@ -18,15 +18,14 @@
 enum chat_stage
 {
   /*
-  */
-  IDLE,                 // Waiting for heartbeats from other users and periodically sending own one
-  SENDING_HEARTBEAT,    // Sending heartbeat to other users
-  WAITING_FOR_PACKET,   //
-  SENDING_PACKET, 
+   */
+  IDLE,               // Waiting for heartbeats from other users and periodically sending own one
+  SENDING_HEARTBEAT,  // Sending heartbeat to other users
+  WAITING_FOR_PACKET, //
+  SENDING_PACKET,
   WAITING_FOR_ACK,
   SENDING_ACK,
 };
-
 
 struct chat_packet
 {
@@ -92,4 +91,11 @@ public:
     free(user_name);
     free(message);
   }
+};
+
+struct chat_user
+{
+  char user_name[8];
+  bool is_active = false;
+  uint32_t last_seen = 0;
 };
