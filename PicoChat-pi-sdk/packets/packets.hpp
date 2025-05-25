@@ -43,7 +43,14 @@ public:
   {
     this->id = id;
     this->user_name_length = (strlen(usr_name) > MAX_USER_NAME_LENGTH) ? MAX_USER_NAME_LENGTH : strlen(usr_name);
-    this->message_length = (strlen(text) > MAX_MESSAGE_LENGTH) ? MAX_MESSAGE_LENGTH : strlen(text);
+    if (text != NULL)
+    {
+      this->message_length = (strlen(text) > MAX_MESSAGE_LENGTH) ? MAX_MESSAGE_LENGTH : strlen(text);
+    }
+    else
+    {
+      this->message_length = 0;
+    }
     user_name = (char *)malloc(user_name_length + 1);
     message = (char *)malloc(message_length + 1);
     memcpy(user_name, usr_name, user_name_length);
@@ -56,7 +63,14 @@ public:
     this->user_name_length = buf[1];
     this->message_length = buf[2];
     user_name = (char *)malloc(user_name_length + 1);
-    message = (char *)malloc(message_length + 1);
+    if (message_length > 0)
+    {
+      message = (char *)malloc(message_length + 1);
+    }
+    else
+    {
+      message = NULL;
+    }
     memcpy(user_name, &buf[3], user_name_length);
     memcpy(message, &buf[3 + user_name_length], message_length);
     user_name[user_name_length] = '\0';

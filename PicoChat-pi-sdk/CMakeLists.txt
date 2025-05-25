@@ -63,7 +63,8 @@ target_include_directories(PicoChat PRIVATE
 target_link_libraries(PicoChat 
         hardware_spi
         hardware_pwm
-        pico_multicore)
+        pico_multicore
+        pico_rand)
 
 # External libs
 include(FetchContent)
