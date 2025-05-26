@@ -6,7 +6,10 @@
             "type": "process",
             "isBuildCommand": true,
             "command": "${userHome}/.pico-sdk/ninja/v1.12.1/ninja",
-            "args": ["-C", "${workspaceFolder}/build"],
+            "args": [
+                "-C",
+                "${workspaceFolder}/build"
+            ],
             "group": "build",
             "presentation": {
                 "reveal": "always",
@@ -51,21 +54,22 @@
             ],
             "problemMatcher": [],
             "windows": {
-                "command": "${env:USERPROFILE}/.pico-sdk/openocd/0.12.0+dev/openocd.exe",
+                "command": "${env:USERPROFILE}/.pico-sdk/openocd/0.12.0+dev/openocd.exe"
             }
         },
         {
             "label": "picoboot3",
-            "type":"shell",
+            "type": "shell",
             "command": "picoboot3",
             "args": [
                 "-f",
-                "${workspaceFolder}/build/*.bin",
+                "${workspaceFolder}/build/PicoChat.bin"
             ],
             "presentation": {
                 "reveal": "always",
                 "panel": "dedicated"
-            }
+            },
+            "problemMatcher": []
         }
     ]
 }

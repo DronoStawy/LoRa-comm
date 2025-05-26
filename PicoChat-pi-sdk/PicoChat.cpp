@@ -27,8 +27,9 @@
 #define LORA_BUSY 18
 #define LORA_ANT_SW 17
 
+#define SERIAL_PORT uart0
 // Set which module is a master
-//#define MODE_PIN 7
+// #define MODE_PIN 7
 
 #define MAX_CHAT_USERS 4
 
@@ -65,6 +66,10 @@ bool sending_ack_flag = false;
 
 chat_user users[MAX_CHAT_USERS];
 
+bool new_serial_data = false;
+const uint8_t char_buf_size = 140;
+char serial_received_chars[char_buf_size];
+
 // Our user variables
 char user_name[MAX_USER_NAME_LENGTH] = "User1";
 
@@ -81,6 +86,8 @@ void updateUserStatus(char *usr_name);
 void updateUserList();
 int randomRange(int min, int max);
 bool doCSMA();
+void updateHeartbeatTimer();
+void readSerialData();
 
 int main()
 {
@@ -89,7 +96,7 @@ int main()
   gpio_init(PICO_DEFAULT_LED_PIN);
   gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
 
-  uart_set_hw_flow(uart0, false, false);
+  uart_set_hw_flow(SERIAL_PORT, false, false);
 
   bool led_state = false;
 
@@ -114,6 +121,12 @@ int main()
     case IDLE:
     {
       gpio_put(PICO_DEFAULT_LED_PIN, 1);
+
+      // Check if we have new serial data
+      readSerialData();
+      if(new_serial_data){
+        stage = SENDING_PACKET;
+      }
       if (!waiting_for_packet_flag)
       {
         int state = radio.startReceive();
@@ -139,7 +152,7 @@ int main()
             updateUserStatus(packet.user_name);
             // interrupt_flag = false;
             stage = IDLE;
-            waiting_for_packet_flag = false;
+            //waiting_for_packet_flag = false;
             break;
           }
 
@@ -150,7 +163,7 @@ int main()
             updateUserStatus(packet.user_name);
             // interrupt_flag = false;
             stage = SENDING_ACK;
-            waiting_for_packet_flag = false;
+            //waiting_for_packet_flag = false;
             break;
           }
           else if (packet.id == PACKET_TYPE_ACK)
@@ -160,7 +173,7 @@ int main()
             updateUserStatus(packet.user_name);
             // interrupt_flag = false;
             stage = IDLE;
-            waiting_for_packet_flag = false;
+            //waiting_for_packet_flag = false;
             break;
           }
           else
@@ -168,7 +181,7 @@ int main()
             printf("Unknown packet type\n");
             // interrupt_flag = false;
             stage = IDLE;
-            waiting_for_packet_flag = false;
+            //waiting_for_packet_flag = false;
             break;
           }
         }
@@ -184,6 +197,7 @@ int main()
         int state = radio.transmit(packet.toByteArray(), packet.getPacketSize());
         checkState(state);
         prev_heartbeat_time = curr_heartbeat_time;
+        interrupt_flag = false; // Reset the interrupt flag
         stage = IDLE;
         break;
       }
@@ -194,6 +208,48 @@ int main()
         break;
       }
     }
+    case SENDING_ACK:
+    {
+      if(doCSMA()){
+        chat_packet packet(PACKET_TYPE_ACK, user_name, NULL);
+        int state = radio.transmit(packet.toByteArray(), packet.getPacketSize());
+        checkState(state);
+        // ACK packet works as a heartbeat, so update the timer
+        updateHeartbeatTimer();
+        waiting_for_packet_flag = false; // Start listening for new packets again
+        stage = IDLE;
+        break;
+      }
+      else
+      {
+        printf("Channel busy, waiting...\n");
+        stage = IDLE; // Go back to IDLE state if channel is busy
+        break;
+      }
+    }
+    case SENDING_PACKET:
+    {
+      if (doCSMA())
+      {
+        // Create a packet with the received serial data
+        chat_packet packet(PACKET_TYPE_MESSAGE, user_name, serial_received_chars);
+        int state = radio.transmit(packet.toByteArray(), packet.getPacketSize());
+        checkState(state);
+        new_serial_data = false; // Reset the flag after sending
+        interrupt_flag = false; // Reset the interrupt flag
+        waiting_for_packet_flag = false; // Start listening for new packets again
+        updateHeartbeatTimer(); // Update the heartbeat timer after sending a message4
+        stage = IDLE;
+        break;
+      }
+      else
+      {
+        printf("Channel busy, waiting...\n");
+        stage = IDLE; // Go back to IDLE state if channel is busy
+        break;
+      }
+    }
+
     default:
       break;
     }
@@ -276,18 +332,20 @@ void updateUserList()
   }
 }
 
-int randomRange(int min, int max) {
-    if (min > max) {
-        // Swap if min > max
-        int temp = min;
-        min = max;
-        max = temp;
-    }
-    
-    uint32_t range = max - min + 1;
-    uint32_t random_val = get_rand_32();
-    
-    return min + (random_val % range);
+int randomRange(int min, int max)
+{
+  if (min > max)
+  {
+    // Swap if min > max
+    int temp = min;
+    min = max;
+    max = temp;
+  }
+
+  uint32_t range = max - min + 1;
+  uint32_t random_val = get_rand_32();
+
+  return min + (random_val % range);
 }
 
 bool doCSMA()
@@ -327,4 +385,31 @@ void goToBootloader()
   {
     continue;
   }
+}
+
+void updateHeartbeatTimer()
+{
+  prev_heartbeat_time = to_ms_since_boot(get_absolute_time());
+}
+
+void readSerialData() {
+    static uint8_t ndx = 0;
+    char endMarker = '\n';
+    char rc;
+    while (uart_is_readable(SERIAL_PORT) && new_serial_data == false) {
+        rc = uart_getc(SERIAL_PORT); // Read a character from the UART
+
+        if (rc != endMarker) {
+            serial_received_chars[ndx] = rc;
+            ndx++;
+            if (ndx >= char_buf_size) {
+                ndx = char_buf_size - 1;
+            }
+        }
+        else {
+            serial_received_chars[ndx] = '\0'; // terminate the string
+            ndx = 0;
+            new_serial_data = true;
+        }
+    }
 }
