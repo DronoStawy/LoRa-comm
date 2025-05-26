@@ -45,7 +45,7 @@ pico_enable_stdio_uart(PicoChat 1)
 pico_enable_stdio_usb(PicoChat 0)
 
 target_compile_definitions(PicoChat PRIVATE
-        PICO_DEFAULT_UART_BAUD_RATE=9600
+        PICO_DEFAULT_UART_BAUD_RATE=115200
         PICO_DEFAULT_UART_TX_PIN=0
         PICO_DEFAULT_UART_RX_PIN=1
 )

@@ -58,16 +58,36 @@
             }
         },
         {
-            "label": "picoboot3",
+            "label": "picoboot flash 1",
             "type": "shell",
             "command": "picoboot3",
             "args": [
                 "-f",
-                "${workspaceFolder}/build/PicoChat.bin"
+                "${workspaceFolder}/build/PicoChat.bin",
+                "-p",
+                "/dev/cu.usbmodem*9"
             ],
             "presentation": {
                 "reveal": "always",
-                "panel": "dedicated"
+                "panel": "dedicated",
+                "close": true
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "picoboot flash 2",
+            "type": "shell",
+            "command": "picoboot3",
+            "args": [
+                "-f",
+                "${workspaceFolder}/build/PicoChat.bin",
+                "-p",
+                "/dev/cu.usbmodem*3"
+            ],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "close": true
             },
             "problemMatcher": []
         }

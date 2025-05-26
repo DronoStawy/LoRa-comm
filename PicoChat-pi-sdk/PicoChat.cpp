@@ -191,7 +191,6 @@ int main()
         int state = radio.transmit(packet.toByteArray(), packet.getPacketSize());
         checkState(state);
         prev_heartbeat_time = curr_heartbeat_time;
-        //interrupt_flag = false;   // Reset the interrupt flag
         idle_listen_flag = false; // Start listening for new packets again
         stage = IDLE;
         break;
@@ -210,7 +209,6 @@ int main()
         chat_packet packet(PACKET_TYPE_ACK, user_name, NULL);
         int state = radio.transmit(packet.toByteArray(), packet.getPacketSize());
         checkState(state);
-        // ACK packet works as a heartbeat, so update the timer
         updateHeartbeatTimer();
         idle_listen_flag = false; // Start listening for new packets again
         stage = IDLE;
@@ -232,6 +230,7 @@ int main()
         chat_packet packet(PACKET_TYPE_MESSAGE, user_name, serial_received_chars);
         int state = radio.transmit(packet.toByteArray(), packet.getPacketSize());
         checkState(state);
+        waiting_for_ack_flag = true; // Set the flag to wait for ACK
         new_serial_data = false;  // Reset the flag after sending
         interrupt_flag = false;   // Reset the interrupt flag
         idle_listen_flag = false; // Start listening for new packets again
@@ -258,7 +257,7 @@ int main()
 int radioInit()
 {
   // initialize the radio
-  int state = radio.begin(868.0, 125.0, 9, 7, RADIOLIB_SX126X_SYNC_WORD_PRIVATE, 14, 8, 0, true);
+  int state = radio.begin(868.0, 125.0, 7, 7, RADIOLIB_SX126X_SYNC_WORD_PRIVATE, 3, 8, 0, true);
   if (state != RADIOLIB_ERR_NONE)
   {
     printf("failed, code %d\n", state);
