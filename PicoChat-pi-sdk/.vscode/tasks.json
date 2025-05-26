@@ -68,7 +68,7 @@
                 "/dev/cu.usbmodem*9"
             ],
             "presentation": {
-                "reveal": "always",
+                "reveal": "never",
                 "panel": "dedicated",
                 "close": true
             },
@@ -85,7 +85,7 @@
                 "/dev/cu.usbmodem*3"
             ],
             "presentation": {
-                "reveal": "always",
+                "reveal": "never",
                 "panel": "dedicated",
                 "close": true
             },
