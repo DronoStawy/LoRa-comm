@@ -87,9 +87,11 @@ void updateUserList();
 int randomRange(int min, int max);
 bool doCSMA();
 void updateHeartbeatTimer();
+void updateAckTimer();
 void readSerialData();
 void ledOn();
 void ledOff();
+bool checkAckReceived();
 
 int main()
 {
@@ -121,8 +123,8 @@ int main()
     case IDLE:
     {
       ledOff();
-      // Check if we have new serial data
-      readSerialData();
+      readSerialData(); // Check if we have new serial data
+      stage = (checkAckReceived()) ? SENDING_ACK : IDLE; // If message was sent, check for ACK
       if (new_serial_data)
       {
         stage = SENDING_PACKET;
@@ -230,11 +232,11 @@ int main()
         chat_packet packet(PACKET_TYPE_MESSAGE, user_name, serial_received_chars);
         int state = radio.transmit(packet.toByteArray(), packet.getPacketSize());
         checkState(state);
-        waiting_for_ack_flag = true; // Set the flag to wait for ACK
+        updateAckTimer();         // Start waiting for ACK after sending the packet
+        updateHeartbeatTimer();   // Update the heartbeat timer after sending a message
         new_serial_data = false;  // Reset the flag after sending
         interrupt_flag = false;   // Reset the interrupt flag
         idle_listen_flag = false; // Start listening for new packets again
-        updateHeartbeatTimer();   // Update the heartbeat timer after sending a message4
         stage = IDLE;
         break;
       }
@@ -393,6 +395,12 @@ void updateHeartbeatTimer()
   prev_heartbeat_time = to_ms_since_boot(get_absolute_time());
 }
 
+void updateAckTimer()
+{
+  prev_ack_check_time = to_ms_since_boot(get_absolute_time());
+  waiting_for_ack_flag = true; // Set the flag to wait for ACK
+}
+
 void readSerialData()
 {
   static uint8_t ndx = 0;
@@ -427,4 +435,23 @@ void ledOn()
 void ledOff()
 {
   gpio_put(PICO_DEFAULT_LED_PIN, 0);
+}
+
+bool checkAckReceived()
+{
+  if (waiting_for_ack_flag)
+  {
+    curr_ack_check_time = to_ms_since_boot(get_absolute_time());
+    if (curr_ack_check_time - prev_ack_check_time > ACK_TIMEOUT_MS)
+    {
+      printf("ACK timeout, resending packet...\n");
+      waiting_for_ack_flag = false; // Reset the flag
+      return false;                 // ACK not received
+    }
+    else
+    {
+      return true; // ACK received within timeout
+    }
+  }
+  return true; // No ACK waiting, return true to avoid blocking
 }
