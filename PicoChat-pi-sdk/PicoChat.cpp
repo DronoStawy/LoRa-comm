@@ -136,8 +136,15 @@ int main()
     case IDLE:
     {
       ledOff();
-      readSerialData();                                  // Check if we have new serial data
-      stage = (checkAckReceived()) ? SENDING_ACK : IDLE; // If message was sent, check for ACK
+      readSerialData(); // Check if we have new serial data
+      if (checkAckReceived())
+      {
+        stage = IDLE;
+      }
+      else
+      {
+        stage = SENDING_PACKET;
+      }
       if (new_serial_data)
       {
         stage = SENDING_PACKET;
@@ -150,9 +157,9 @@ int main()
       }
       if (interrupt_flag)
       {
-        interrupt_flag = false;
-        uint8_t buf[255];
+        uint8_t buf[256];
         int state = radio.readData(buf, sizeof(buf));
+        interrupt_flag = false;
         if (state == RADIOLIB_ERR_NONE)
         {
           chat_packet packet(buf);
@@ -182,6 +189,7 @@ int main()
             // Update status of the user who sent the ACK
             updateUserStatus(packet.user_name);
             // interrupt_flag = false;
+            waiting_for_ack_flag = false; // Reset the waiting for ACK flag
             stage = IDLE;
             break;
           }
@@ -207,6 +215,7 @@ int main()
         checkState(state);
         prev_heartbeat_time = curr_heartbeat_time;
         idle_listen_flag = false; // Start listening for new packets again
+        interrupt_flag = false; // Reset the interrupt flag
         stage = IDLE;
         break;
       }
@@ -226,6 +235,7 @@ int main()
         checkState(state);
         updateHeartbeatTimer();
         idle_listen_flag = false; // Start listening for new packets again
+        interrupt_flag = false; // Reset the interrupt flag
         stage = IDLE;
         break;
       }
