@@ -29,7 +29,7 @@
 
 #define SERIAL_PORT uart0
 // Set which module is a master
-// #define MODE_PIN 7
+#define USER_PIN 7
 
 #define MAX_CHAT_USERS 4
 
@@ -71,7 +71,7 @@ const uint8_t char_buf_size = 140;
 char serial_received_chars[char_buf_size];
 
 // Our user variables
-char user_name[MAX_USER_NAME_LENGTH] = "User1";
+char user_name[MAX_USER_NAME_LENGTH];
 
 void intFlag()
 {
@@ -100,6 +100,10 @@ int main()
   gpio_init(PICO_DEFAULT_LED_PIN);
   gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
 
+  gpio_init(USER_PIN);
+  gpio_set_dir(USER_PIN, GPIO_IN);
+  gpio_pull_up(USER_PIN);
+
   uart_set_hw_flow(SERIAL_PORT, false, false);
 
   // Initialize timers
@@ -109,6 +113,15 @@ int main()
   radioInit();
   chat_stage stage = IDLE;
   sleep_ms(randomRange(100, 500)); // Random delay to avoid collisions at startup
+
+  if (gpio_get(USER_PIN) == 0)
+  {
+    strcpy(user_name, "Pico");
+  }
+  else
+  {
+    strcpy(user_name, "Chat");
+  }
 
   for (;;)
   {
@@ -123,7 +136,7 @@ int main()
     case IDLE:
     {
       ledOff();
-      readSerialData(); // Check if we have new serial data
+      readSerialData();                                  // Check if we have new serial data
       stage = (checkAckReceived()) ? SENDING_ACK : IDLE; // If message was sent, check for ACK
       if (new_serial_data)
       {
