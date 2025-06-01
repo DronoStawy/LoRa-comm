@@ -166,9 +166,7 @@ int main()
           if (packet.id == PACKET_TYPE_HEARTBEAT)
           {
             printf("Heartbeat received from %s\n", packet.user_name);
-            // Check if the user is already in the list
             updateUserStatus(packet.user_name);
-            // interrupt_flag = false;
             stage = IDLE;
             break;
           }
