@@ -61,11 +61,11 @@
     <property name="title">
      <string>Quick Actions</string>
     </property>
-    <widget class="QPushButton" name="pushButton_2">
+    <widget class="QPushButton" name="rebootButton">
      <property name="geometry">
       <rect>
        <x>10</x>
-       <y>21</y>
+       <y>20</y>
        <width>121</width>
        <height>41</height>
       </rect>
@@ -74,7 +74,7 @@
       <string>Reboot</string>
      </property>
     </widget>
-    <widget class="QPushButton" name="pushButton_3">
+    <widget class="QPushButton" name="flashButton">
      <property name="geometry">
       <rect>
        <x>10</x>
@@ -195,17 +195,17 @@
     <property name="title">
      <string>Serial connection</string>
     </property>
-    <widget class="QPushButton" name="connectButton">
+    <widget class="QPushButton" name="refreshPortsButton">
      <property name="geometry">
       <rect>
-       <x>10</x>
-       <y>90</y>
-       <width>121</width>
+       <x>100</x>
+       <y>60</y>
+       <width>31</width>
        <height>31</height>
       </rect>
      </property>
      <property name="text">
-      <string>Connect</string>
+      <string>↻</string>
      </property>
     </widget>
     <widget class="QComboBox" name="portComboBox">
@@ -223,9 +223,22 @@
       <rect>
        <x>0</x>
        <y>60</y>
-       <width>141</width>
+       <width>101</width>
        <height>32</height>
       </rect>
+     </property>
+    </widget>
+    <widget class="QPushButton" name="connectButton">
+     <property name="geometry">
+      <rect>
+       <x>10</x>
+       <y>90</y>
+       <width>121</width>
+       <height>31</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Connect</string>
      </property>
     </widget>
    </widget>

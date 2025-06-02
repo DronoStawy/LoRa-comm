@@ -10,6 +10,14 @@
 #define PACKET_TYPE_ACK 1
 #define PACKET_TYPE_MESSAGE 2
 
+// Debug messages code
+#define HEARTBEAT_REVEIVED 0b00000001
+#define ACK_REVEIVED 0b00000010
+#define MESSAGE_REVEIVED 0b00000011
+#define UNKNOWN_PACKET_REVEIVED 0b00000100
+#define CHANNEL_BUSY 0b00000101
+
+
 // Default message packet structure
 /*
  @brief Structure representing a PicoChat packet.
@@ -26,6 +34,7 @@ enum chat_stage
   WAITING_FOR_ACK,
   SENDING_ACK,
 };
+
 
 struct chat_packet
 {
