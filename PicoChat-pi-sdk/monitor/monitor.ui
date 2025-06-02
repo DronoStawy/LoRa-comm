@@ -26,7 +26,7 @@
    <string>PicoChat Monitor</string>
   </property>
   <widget class="QWidget" name="centralwidget">
-   <widget class="QPlainTextEdit" name="plainTextEdit">
+   <widget class="QPlainTextEdit" name="messageEdit">
     <property name="geometry">
      <rect>
       <x>10</x>
@@ -36,7 +36,7 @@
      </rect>
     </property>
    </widget>
-   <widget class="QPushButton" name="pushButton">
+   <widget class="QPushButton" name="sendButton">
     <property name="geometry">
      <rect>
       <x>650</x>
@@ -126,7 +126,7 @@
     <property name="title">
      <string>Text messages</string>
     </property>
-    <widget class="QTextBrowser" name="textBrowser">
+    <widget class="QTextBrowser" name="messagesBrowser">
      <property name="geometry">
       <rect>
        <x>0</x>
@@ -149,7 +149,7 @@
     <property name="title">
      <string>Debug</string>
     </property>
-    <widget class="QTextBrowser" name="textBrowser_2">
+    <widget class="QTextBrowser" name="debugBrowser">
      <property name="geometry">
       <rect>
        <x>0</x>
@@ -195,20 +195,7 @@
     <property name="title">
      <string>Serial connection</string>
     </property>
-    <widget class="QPushButton" name="pushButton_4">
-     <property name="geometry">
-      <rect>
-       <x>10</x>
-       <y>60</y>
-       <width>121</width>
-       <height>31</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>Connect</string>
-     </property>
-    </widget>
-    <widget class="QPushButton" name="pushButton_5">
+    <widget class="QPushButton" name="connectButton">
      <property name="geometry">
       <rect>
        <x>10</x>
@@ -218,14 +205,24 @@
       </rect>
      </property>
      <property name="text">
-      <string>Disconnect</string>
+      <string>Connect</string>
      </property>
     </widget>
-    <widget class="QComboBox" name="comboBox">
+    <widget class="QComboBox" name="portComboBox">
      <property name="geometry">
       <rect>
        <x>0</x>
        <y>30</y>
+       <width>141</width>
+       <height>32</height>
+      </rect>
+     </property>
+    </widget>
+    <widget class="QComboBox" name="baudComboBox">
+     <property name="geometry">
+      <rect>
+       <x>0</x>
+       <y>60</y>
        <width>141</width>
        <height>32</height>
       </rect>
