@@ -130,7 +130,8 @@ public:
   {
     if (enabled)
     {
-      printf(char(HEARTBEAT_REVEIVED) + user_name);
+      // printf(char(HEARTBEAT_REVEIVED) + user_name);
+      printf("Heartbeat received from: %s\n", user_name);
     }
   }
 
@@ -138,7 +139,8 @@ public:
   {
     if (enabled)
     {
-      printf(char(ACK_REVEIVED) + user_name);
+      // printf(char(ACK_REVEIVED) + user_name);
+      printf("ACK received from: %s\n", user_name);
     }
   }
 };

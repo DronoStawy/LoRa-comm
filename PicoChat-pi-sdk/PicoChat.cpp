@@ -90,7 +90,7 @@ int randomRange(int min, int max);
 bool doCSMA();
 void updateHeartbeatTimer();
 void updateAckTimer();
-bool readSerialData();
+void readSerialData();
 void ledOn();
 void ledOff();
 bool checkAckReceived();
@@ -133,6 +133,7 @@ int main()
   {
     // Check timers
     curr_heartbeat_time = to_ms_since_boot(get_absolute_time());
+    
     if (curr_heartbeat_time - prev_heartbeat_time > 1000)
     {
       stage = SENDING_HEARTBEAT;
@@ -142,9 +143,11 @@ int main()
     case IDLE:
     {
       ledOff();
-      if (readSerialData())
+      readSerialData(); // Read serial data if available
+      if (new_serial_data)
       {
-        parseSerialData(); // Parse the serial data for commands
+        stage = SENDING_PACKET; // Parse the serial data for command
+        break;
       }
       if (checkAckReceived())
       {
@@ -153,10 +156,7 @@ int main()
       else
       {
         stage = SENDING_PACKET;
-      }
-      if (new_serial_data)
-      {
-        stage = SENDING_PACKET;
+        break;
       }
       if (!idle_listen_flag)
       {
@@ -432,7 +432,7 @@ void updateAckTimer()
   waiting_for_ack_flag = true; // Set the flag to wait for ACK
 }
 
-bool readSerialData()
+void readSerialData()
 {
   static uint8_t ndx = 0;
   char endMarker = '\n';
@@ -449,14 +449,21 @@ bool readSerialData()
       {
         ndx = char_buf_size - 1;
       }
-      return false; // Still reading
     }
     else
     {
       serial_received_chars[ndx] = '\0'; // terminate the string
-      ndx = 0;
-      new_serial_data = true;
-      return true;
+      if (serial_received_chars[0] == '/' && ndx > 1)
+      {
+        parseSerialData();
+        ndx = 0;
+        new_serial_data = false; // Reset the flag after parsing
+      }
+      else
+      {
+        ndx = 0;
+        new_serial_data = true;
+      }
     }
   }
 }
@@ -491,20 +498,16 @@ bool checkAckReceived()
 
 void parseSerialData()
 {
-  if (serial_received_chars[0] == '/')
+  // Parse the serial data for commands
+  if (strcmp(serial_received_chars, "/bootloader") == 0)
   {
-    char *command = strtok(serial_received_chars, " ");
-    if (strcmp(command, "/bootloader") == 0)
-    {
-      goToBootloader();
-    }
-    else if (strcmp(command, "/test") == 0)
-    {
-      printf("Test works!\n");
-    }
-    else
-    {
-      printf("Unknown command: %s\n", command);
-    }
+    goToBootloader();
+  }
+  else if (strcmp(serial_received_chars, "/test") == 0) {
+    printf("Test command received\n");
+  }
+  else
+  {
+    printf("Unknown command: %s\n", serial_received_chars);
   }
 }

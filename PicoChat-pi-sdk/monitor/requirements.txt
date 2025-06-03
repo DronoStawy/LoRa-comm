@@ -1,2 +1,2 @@
-pySerial
 pyside6
+picoboot3
