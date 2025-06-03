@@ -1,11 +1,9 @@
 import sys
-import glob
 from PySide6 import QtSerialPort
 from serial import SerialException
 from PySide6.QtWidgets import QApplication, QMainWindow
 from PySide6.QtCore import QFile
 from monitor_ui import Ui_mainWindow
-
 from datetime import datetime
 
 serial_port = None
