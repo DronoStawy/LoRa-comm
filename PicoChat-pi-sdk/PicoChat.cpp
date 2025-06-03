@@ -90,10 +90,11 @@ int randomRange(int min, int max);
 bool doCSMA();
 void updateHeartbeatTimer();
 void updateAckTimer();
-void readSerialData();
+bool readSerialData();
 void ledOn();
 void ledOff();
 bool checkAckReceived();
+void parseSerialData();
 
 int main()
 {
@@ -141,7 +142,10 @@ int main()
     case IDLE:
     {
       ledOff();
-      readSerialData(); // Check if we have new serial data
+      if (readSerialData())
+      {
+        parseSerialData(); // Parse the serial data for commands
+      }
       if (checkAckReceived())
       {
         stage = IDLE;
@@ -170,7 +174,7 @@ int main()
           ChatPacket packet(buf);
           if (packet.id == PACKET_TYPE_HEARTBEAT)
           {
-            //printf("Heartbeat received from %s\n", packet.user_name);
+            // printf("Heartbeat received from %s\n", packet.user_name);
             deb_serial.serialHeartbeatReceived(packet.user_name);
             updateUserStatus(packet.user_name);
             stage = IDLE;
@@ -219,7 +223,7 @@ int main()
         checkState(state);
         prev_heartbeat_time = curr_heartbeat_time;
         idle_listen_flag = false; // Start listening for new packets again
-        interrupt_flag = false; // Reset the interrupt flag
+        interrupt_flag = false;   // Reset the interrupt flag
         stage = IDLE;
         break;
       }
@@ -239,7 +243,7 @@ int main()
         checkState(state);
         updateHeartbeatTimer();
         idle_listen_flag = false; // Start listening for new packets again
-        interrupt_flag = false; // Reset the interrupt flag
+        interrupt_flag = false;   // Reset the interrupt flag
         stage = IDLE;
         break;
       }
@@ -428,7 +432,7 @@ void updateAckTimer()
   waiting_for_ack_flag = true; // Set the flag to wait for ACK
 }
 
-void readSerialData()
+bool readSerialData()
 {
   static uint8_t ndx = 0;
   char endMarker = '\n';
@@ -445,12 +449,14 @@ void readSerialData()
       {
         ndx = char_buf_size - 1;
       }
+      return false; // Still reading
     }
     else
     {
       serial_received_chars[ndx] = '\0'; // terminate the string
       ndx = 0;
       new_serial_data = true;
+      return true;
     }
   }
 }
@@ -481,4 +487,24 @@ bool checkAckReceived()
     }
   }
   return true; // No ACK waiting, return true to avoid blocking
+}
+
+void parseSerialData()
+{
+  if (serial_received_chars[0] == '/')
+  {
+    char *command = strtok(serial_received_chars, " ");
+    if (strcmp(command, "/bootloader") == 0)
+    {
+      goToBootloader();
+    }
+    else if (strcmp(command, "/test") == 0)
+    {
+      printf("Test works!\n");
+    }
+    else
+    {
+      printf("Unknown command: %s\n", command);
+    }
+  }
 }
