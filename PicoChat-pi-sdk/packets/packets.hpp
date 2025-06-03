@@ -11,12 +11,11 @@
 #define PACKET_TYPE_MESSAGE 2
 
 // Debug messages code
-#define HEARTBEAT_REVEIVED 0b00000001
-#define ACK_REVEIVED 0b00000010
-#define MESSAGE_REVEIVED 0b00000011
-#define UNKNOWN_PACKET_REVEIVED 0b00000100
-#define CHANNEL_BUSY 0b00000101
-
+#define HEARTBEAT_REVEIVED 111
+#define ACK_REVEIVED 112
+#define MESSAGE_REVEIVED 113
+#define UNKNOWN_PACKET_REVEIVED 114
+#define CHANNEL_BUSY 115
 
 // Default message packet structure
 /*
@@ -35,8 +34,7 @@ enum chat_stage
   SENDING_ACK,
 };
 
-
-struct chat_packet
+class ChatPacket
 {
 public:
   uint8_t id; // 0 - heartbeat, 1 - ack, 2 - message
@@ -48,7 +46,7 @@ public:
   /*
   @param id Packet ID
   */
-  chat_packet(uint8_t id, const char *usr_name, const char *text)
+  ChatPacket(uint8_t id, const char *usr_name, const char *text)
   {
     this->id = id;
     this->user_name_length = (strlen(usr_name) > MAX_USER_NAME_LENGTH) ? MAX_USER_NAME_LENGTH : strlen(usr_name);
@@ -66,7 +64,7 @@ public:
     memcpy(message, text, message_length);
   }
 
-  chat_packet(uint8_t *buf)
+  ChatPacket(uint8_t *buf)
   {
     this->id = buf[0];
     this->user_name_length = buf[1];
@@ -109,7 +107,7 @@ public:
     return buffer;
   }
 
-  ~chat_packet()
+  ~ChatPacket()
   {
     free(user_name);
     free(message);
@@ -122,3 +120,29 @@ struct chat_user
   bool is_active = false;
   uint32_t last_seen = 0;
 };
+
+class DebugSerialMessages
+{
+public:
+  bool enabled = false;
+
+  void serialHeartbeatReceived(char *user_name)
+  {
+    if (enabled)
+    {
+      printf(char(HEARTBEAT_REVEIVED) + user_name);
+    }
+  }
+
+  void serialACKReceived(char *user_name)
+  {
+    if (enabled)
+    {
+      printf(char(ACK_REVEIVED) + user_name);
+    }
+  }
+};
+
+// class SerialMessages{
+
+// }

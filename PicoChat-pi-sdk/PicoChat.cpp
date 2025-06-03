@@ -70,6 +70,8 @@ bool new_serial_data = false;
 const uint8_t char_buf_size = 140;
 char serial_received_chars[char_buf_size];
 
+DebugSerialMessages deb_serial;
+
 // Our user variables
 char user_name[MAX_USER_NAME_LENGTH];
 
@@ -105,6 +107,9 @@ int main()
   gpio_pull_up(USER_PIN);
 
   uart_set_hw_flow(SERIAL_PORT, false, false);
+
+  // Enable debug messages
+  deb_serial.enabled = true;
 
   // Initialize timers
   prev_ack_check_time = to_ms_since_boot(get_absolute_time());
@@ -162,10 +167,11 @@ int main()
         interrupt_flag = false;
         if (state == RADIOLIB_ERR_NONE)
         {
-          chat_packet packet(buf);
+          ChatPacket packet(buf);
           if (packet.id == PACKET_TYPE_HEARTBEAT)
           {
-            printf("Heartbeat received from %s\n", packet.user_name);
+            //printf("Heartbeat received from %s\n", packet.user_name);
+            deb_serial.serialHeartbeatReceived(packet.user_name);
             updateUserStatus(packet.user_name);
             stage = IDLE;
             break;
@@ -207,7 +213,7 @@ int main()
       if (doCSMA())
       {
         ledOn();
-        chat_packet packet(PACKET_TYPE_HEARTBEAT, user_name, NULL);
+        ChatPacket packet(PACKET_TYPE_HEARTBEAT, user_name, NULL);
         gpio_put(PICO_DEFAULT_LED_PIN, 0);
         int state = radio.transmit(packet.toByteArray(), packet.getPacketSize());
         checkState(state);
@@ -228,7 +234,7 @@ int main()
     {
       if (doCSMA())
       {
-        chat_packet packet(PACKET_TYPE_ACK, user_name, NULL);
+        ChatPacket packet(PACKET_TYPE_ACK, user_name, NULL);
         int state = radio.transmit(packet.toByteArray(), packet.getPacketSize());
         checkState(state);
         updateHeartbeatTimer();
@@ -250,7 +256,7 @@ int main()
       {
         ledOn();
         // Create a packet with the received serial data
-        chat_packet packet(PACKET_TYPE_MESSAGE, user_name, serial_received_chars);
+        ChatPacket packet(PACKET_TYPE_MESSAGE, user_name, serial_received_chars);
         int state = radio.transmit(packet.toByteArray(), packet.getPacketSize());
         checkState(state);
         updateAckTimer();         // Start waiting for ACK after sending the packet

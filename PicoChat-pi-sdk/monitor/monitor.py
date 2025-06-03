@@ -16,39 +16,45 @@ class MainWindow(QMainWindow):
     def __init__(self):
         global baud_rate
         super(MainWindow, self).__init__()
-        
-        self.qt_serial = QtSerialPort.QSerialPort(self)
-        self.qt_serial_info = QtSerialPort.QSerialPortInfo()
         self.ui = Ui_mainWindow()
         self.ui.setupUi(self)
- 
+        
+        # ============================= Serial connection elements =============================
+        # Qt serial instance
+        self.qt_serial = QtSerialPort.QSerialPort(self)
+        self.qt_serial_info = QtSerialPort.QSerialPortInfo()
+        # UI elements
         # ComboBox for serial ports
         self.ui.portComboBox.addItems([port.portName() for port in self.qt_serial_info.availablePorts()])
         self.ui.portComboBox.currentIndexChanged.connect(self.on_port_selected)
-        
-        # Connect button for connecting/disconnecting
-        self.ui.connectButton.clicked.connect(self.on_connect_button_clicked)
-        
+
         # Update serial ports list
         self.ui.refreshPortsButton.clicked.connect(self.serial_ports_list_update)
-        
-        # Connect on available data
-        self.qt_serial.readyRead.connect(self.on_ready_read)
-        
-        # Connect on send button clicked
-        self.ui.sendButton.clicked.connect(self.on_send_button_clicked)
-        
         # Baudrate selection
         baud_rates = [9600, 19200, 38400, 57600, 115200]
         self.ui.baudComboBox.addItems(map(str, baud_rates))
         self.ui.baudComboBox.setCurrentText(str(baud_rates[0]))
         self.ui.baudComboBox.currentIndexChanged.connect(self.on_baud_selected)
         baud_rate = 9600
+        # Functions
+        # Send button sends message
+        self.ui.sendButton.clicked.connect(self.on_send_button_clicked)
+        # Connect button connects to port
+        self.ui.connectButton.clicked.connect(self.on_connect_button_clicked)
+        # When serial data is available, read it
+        self.qt_serial.readyRead.connect(self.on_ready_read)
+        # ==========================================================================================
         
+        # =================================== Text messages window  ================================
         # Message box
         now = datetime.now()
         current_time = now.strftime("%H:%M:%S")
         self.ui.messagesBrowser.append("[{}] PicoChat Monitor started\n".format(current_time))
+        # ==========================================================================================
+        
+        # =================================== Debug messages window ================================
+        
+        # ==========================================================================================
         
     def on_send_button_clicked(self):
         global connected_to_serial
@@ -84,7 +90,6 @@ class MainWindow(QMainWindow):
                 print(f"Reconnected to {serial_port.portName()} with baud rate {baud_rate}")
             except SerialException as e:
                 print(f"Failed to reconnect: {e}")
-            
         
     def on_port_selected(self, index):
         global serial_port
@@ -116,13 +121,8 @@ class MainWindow(QMainWindow):
             except SerialException as e:
                 print(f"Failed to connect to {serial_port}: {e}")
 
-        
-        
-        
-        
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-
     window = MainWindow()
     window.show()
 
