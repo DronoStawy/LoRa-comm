@@ -17,6 +17,12 @@
 #include "hal/RPiPico/PicoHal.h"
 #include "packets/packets.hpp"
 #include <aes.hpp>
+#include <chrono>
+#include <thread>
+#include <string>
+
+// Pico - z kabelkiem
+// Chat - bez kabelka
 
 #define LORA_SCK 14
 #define LORA_MISO 24
@@ -34,13 +40,16 @@
 #define MAX_CHAT_USERS 4
 
 // Set ACK timeout to 2 seconds
-#define ACK_TIMEOUT_MS 2000
+#define ACK_TIMEOUT_MS 800
 #define USER_STATUS_TIMEOUT_MS 5000
 #define HEARTBEAT_PERIOD_MS 3000
 
 // CSMA timing parameters
 #define CSMA_BACKOFF_MIN_MS 50
 #define CSMA_BACKOFF_MAX_MS 300
+
+using namespace std::this_thread; // sleep_for, sleep_until
+using namespace std::chrono; // nanoseconds, system_clock, seconds
 
 // ACK timing variables
 uint32_t curr_ack_check_time = 0;
@@ -67,13 +76,20 @@ bool sending_ack_flag = false;
 chat_user users[MAX_CHAT_USERS];
 
 bool new_serial_data = false;
-const uint8_t char_buf_size = 140;
+const uint16_t char_buf_size = 1200;
 char serial_received_chars[char_buf_size];
 
 DebugSerialMessages deb_serial;
 
 // Our user variables
 char user_name[MAX_USER_NAME_LENGTH];
+
+// Packet variables
+uint8_t id = 0; // message ID
+uint8_t packet_number = 0; // message number
+bool split_message = false; // flag to indicate if the message is split
+bool retransmission_flag = false; // flag to indicate if the message is being retransmitted
+uint8_t crc_calculated = 0;
 
 void intFlag()
 {
@@ -134,9 +150,9 @@ int main()
     // Check timers
     curr_heartbeat_time = to_ms_since_boot(get_absolute_time());
     
-    if (curr_heartbeat_time - prev_heartbeat_time > 1000)
+    if (curr_heartbeat_time - prev_heartbeat_time > 1000 && split_message)
     {
-      stage = SENDING_HEARTBEAT;
+      stage = SENDING_PACKET;
     }
     switch (stage)
     {
@@ -151,11 +167,14 @@ int main()
       }
       if (checkAckReceived())
       {
+        retransmission_flag = false; // Reset retransmission flag if ACK received
         stage = IDLE;
       }
       else
       {
         stage = SENDING_PACKET;
+        retransmission_flag = true; // Set retransmission flag if ACK not received
+        prev_heartbeat_time = to_ms_since_boot(get_absolute_time());
         break;
       }
       if (!idle_listen_flag)
@@ -172,30 +191,45 @@ int main()
         if (state == RADIOLIB_ERR_NONE)
         {
           ChatPacket packet(buf);
-          if (packet.id == PACKET_TYPE_HEARTBEAT)
+          if (packet.type == PACKET_TYPE_HEARTBEAT)
           {
             // printf("Heartbeat received from %s\n", packet.user_name);
-            deb_serial.serialHeartbeatReceived(packet.user_name);
-            updateUserStatus(packet.user_name);
+            deb_serial.serialHeartbeatReceived(packet.id);
+            //updateUserStatus(packet.user_name);
             stage = IDLE;
             break;
           }
 
-          else if (packet.id == PACKET_TYPE_MESSAGE)
+          else if (packet.type == PACKET_TYPE_MESSAGE)
           {
             ledOn();
             printf("Message: %s\n", packet.message);
+            printf("Message received from ID: %i, Number: %i\n", packet.id, packet.number);
+            printf("Message length: %i\n", packet.message_length);
             // Update status of the user who sent the message
-            updateUserStatus(packet.user_name);
-            // interrupt_flag = false;
-            stage = SENDING_ACK;
-            break;
+            //updateUserStatus(packet.user_name);
+            //interrupt_flag = false;
+            id = packet.id; // Update the ID to the one from the received packet
+            packet_number = packet.number; // Update the packet number to the one from the received packet
+            crc_calculated = packet.CyclicRedundancyCode(packet.type, packet.id, packet.number, packet.message, packet.message_length, packet.split_message);
+            printf("CRC calculated: %i\n", crc_calculated);
+            printf("CRC from packet: %i\n", packet.control_sum);
+            if (crc_calculated == packet.control_sum){
+              stage = SENDING_ACK;
+              break;
+            }
+            else {
+              stage = IDLE; //gdy crc się nie zgadza, to po prostu nie wysyłamy potwierdzenia odbioru informacji
+              break;
+            }
           }
-          else if (packet.id == PACKET_TYPE_ACK)
+          else if (packet.type == PACKET_TYPE_ACK)
           {
-            printf("ACK received from %s\n", packet.user_name);
+            //printf("ACK received from %s\n", packet.user_name);
+            //deb_serial.serialACKReceived(packet.id);
+            printf("ACK received, ID: %i, Number: %i\n", packet.id, packet.number);
             // Update status of the user who sent the ACK
-            updateUserStatus(packet.user_name);
+            //updateUserStatus(packet.user_name);
             // interrupt_flag = false;
             waiting_for_ack_flag = false; // Reset the waiting for ACK flag
             stage = IDLE;
@@ -217,7 +251,8 @@ int main()
       if (doCSMA())
       {
         ledOn();
-        ChatPacket packet(PACKET_TYPE_HEARTBEAT, user_name, NULL);
+        id = (id != 255) ? id + 1 : 0; // Increment ID, reset to 0 if it reaches 255
+        ChatPacket packet(PACKET_TYPE_HEARTBEAT, id, packet_number, NULL); 
         gpio_put(PICO_DEFAULT_LED_PIN, 0);
         int state = radio.transmit(packet.toByteArray(), packet.getPacketSize());
         checkState(state);
@@ -238,9 +273,10 @@ int main()
     {
       if (doCSMA())
       {
-        ChatPacket packet(PACKET_TYPE_ACK, user_name, NULL);
-        int state = radio.transmit(packet.toByteArray(), packet.getPacketSize());
-        checkState(state);
+        //id = (id != 255) ? id + 1 : 0; // Increment ID, reset to 0 if it reaches 255
+        ChatPacket packet(PACKET_TYPE_ACK, id, packet_number, NULL);
+        int state = radio.transmit(packet.toByteArray(), packet.getPacketSize()); // do odkomentowania
+        checkState(state); //do odkomentowania
         updateHeartbeatTimer();
         idle_listen_flag = false; // Start listening for new packets again
         interrupt_flag = false;   // Reset the interrupt flag
@@ -251,6 +287,7 @@ int main()
       {
         printf("Channel busy, waiting...\n");
         stage = SENDING_ACK; // Go back to IDLE state if channel is busy
+        printf("ACK not sent, waiting for channel to be free...\n");
         break;
       }
     }
@@ -259,12 +296,64 @@ int main()
       if (doCSMA())
       {
         ledOn();
-        // Create a packet with the received serial data
-        ChatPacket packet(PACKET_TYPE_MESSAGE, user_name, serial_received_chars);
-        int state = radio.transmit(packet.toByteArray(), packet.getPacketSize());
-        checkState(state);
-        updateAckTimer();         // Start waiting for ACK after sending the packet
-        updateHeartbeatTimer();   // Update the heartbeat timer after sending a message
+        if (split_message){
+          if (!retransmission_flag)
+          {
+            int i = 0;
+            while (true)
+            {
+              if (i == char_buf_size || serial_received_chars[i] == '\0')
+              {
+                break; // Exit the loop if we reach the end of the buffer or a null character
+              }
+              i++;
+            }
+            printf("Buffer size: %i\n", i);
+
+            for (int j = 0; j < char_buf_size; j++){
+              if (j < (i - MAX_MESSAGE_LENGTH)){
+                serial_received_chars[j] = serial_received_chars[j + MAX_MESSAGE_LENGTH];
+              }
+              else
+              {
+                serial_received_chars[j] = '\0'; // Clear the buffer
+              }
+              //else{
+                //serial_received_chars[j] = NULL; // Clear the buffer
+              //}
+            }
+          }
+          if (serial_received_chars[0] != '\n' && serial_received_chars[0] != '\0' && serial_received_chars[0] != '\r'){
+            if (!retransmission_flag) packet_number++;
+            ChatPacket packet(PACKET_TYPE_MESSAGE, id, packet_number, serial_received_chars);
+            int state = radio.transmit(packet.toByteArray(), packet.getPacketSize());
+            checkState(state);
+            printf("Packet sent, ID: %i, Number: %i\n", packet.id, packet.number);
+            updateAckTimer();         // Start waiting for ACK after sending the packet
+            updateHeartbeatTimer();   // Update the heartbeat timer after sending a message
+
+            
+            printf("Split packet: %p\n", packet.split_message);
+            split_message = (packet.split_message == 1) ? true : false; // Check if the message is split
+          }
+          else {
+            split_message = false; // Reset the split message flag if the buffer is empty
+          }
+        }
+        else{
+          if (!retransmission_flag){
+            id = (id != 255) ? id + 1 : 0; // Increment ID, reset to 0 if it reaches 255
+            packet_number = 0; // Reset packet number for new message
+          }
+          ChatPacket packet(PACKET_TYPE_MESSAGE, id, packet_number, serial_received_chars);
+          int state = radio.transmit(packet.toByteArray(), packet.getPacketSize());
+          checkState(state);
+          printf("Packet sent, ID: %i, Number: %i\n", packet.id, packet.number);
+          updateAckTimer();         // Start waiting for ACK after sending the packet
+          updateHeartbeatTimer();   // Update the heartbeat timer after sending a message
+          split_message = (packet.split_message == 1) ? true : false; // Check if the message is split
+        }
+        
         new_serial_data = false;  // Reset the flag after sending
         interrupt_flag = false;   // Reset the interrupt flag
         idle_listen_flag = false; // Start listening for new packets again
@@ -434,7 +523,7 @@ void updateAckTimer()
 
 void readSerialData()
 {
-  static uint8_t ndx = 0;
+  static uint16_t ndx = 0;
   char endMarker = '\n';
   char rc;
   while (uart_is_readable(SERIAL_PORT) && new_serial_data == false)
