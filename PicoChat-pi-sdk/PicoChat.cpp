@@ -24,13 +24,13 @@
 // Pico - z kabelkiem
 // Chat - bez kabelka
 
-#define LORA_SCK 14
-#define LORA_MISO 24
-#define LORA_MOSI 15
-#define LORA_CS 13
-#define LORA_RST 23
-#define LORA_DIO1 16
-#define LORA_BUSY 18
+#define LORA_SCK 18
+#define LORA_MISO 16
+#define LORA_MOSI 19
+#define LORA_CS 17
+#define LORA_RST 26
+#define LORA_DIO1 22
+#define LORA_BUSY 15
 #define LORA_ANT_SW 17
 
 #define SERIAL_PORT uart0
@@ -64,8 +64,25 @@ uint32_t curr_csma_time = 0;
 uint32_t prev_csma_time = 0;
 int backoff_time = 0;
 // create a new instance of the HAL class
-PicoHal *hal = new PicoHal(spi1, LORA_MISO, LORA_MOSI, LORA_SCK);
-SX1262 radio = new Module(hal, LORA_CS, LORA_DIO1, LORA_RST, LORA_BUSY);
+PicoHal *hal = new PicoHal(spi0, LORA_MISO, LORA_MOSI, LORA_SCK);
+LR1121 radio = new Module(hal, LORA_CS, LORA_DIO1, LORA_RST, LORA_BUSY);
+
+static const uint32_t rfswitch_dio_pins[] = { 
+  RADIOLIB_LR11X0_DIO5, RADIOLIB_LR11X0_DIO6,
+  RADIOLIB_NC, RADIOLIB_NC, RADIOLIB_NC
+};
+
+static const Module::RfSwitchMode_t rfswitch_table[] = {
+  // mode                  DIO5  DIO6 
+  { LR11x0::MODE_STBY,   { 0,  0,  0 } },
+  { LR11x0::MODE_RX,     { 0,  1,  0 } },
+  { LR11x0::MODE_TX,     { 1,  1,  0 } },
+  { LR11x0::MODE_TX_HP,  { 1,  0,  0 } },
+  { LR11x0::MODE_TX_HF,  { 0,  0,  0 } },
+  { LR11x0::MODE_GNSS,   { 0,  0,  1 } },
+  { LR11x0::MODE_WIFI,   { 0,  0,  0 } },
+  END_OF_MODE_TABLE,
+};
 
 volatile bool interrupt_flag = false;
 bool idle_listen_flag = false;
@@ -379,7 +396,9 @@ int main()
 int radioInit()
 {
   // initialize the radio
-  int state = radio.begin(868.0, 125.0, 7, 7, RADIOLIB_SX126X_SYNC_WORD_PRIVATE, 3, 8, 0, true);
+  //int state = radio.begin(2400.0, 812, 7, 7, RADIOLIB_LR11X0_LORA_SYNC_WORD_PRIVATE, 3, 8, 0);
+  int state = radio.begin();
+  radio.setFrequency(2400.0);
   if (state != RADIOLIB_ERR_NONE)
   {
     printf("failed, code %d\n", state);
@@ -387,7 +406,7 @@ int radioInit()
     return state;
   }
   printf("success!\n");
-  radio.setDio1Action(intFlag);
+  radio.setIrqAction(intFlag);
   radio.setOutputPower(0);
   return state;
 }
