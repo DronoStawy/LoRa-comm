@@ -12,6 +12,8 @@
 
 #include <pico/stdlib.h>
 #include <pico/rand.h>
+#include <pico/stdio_usb.h>
+#include <tusb.h>
 #include "hardware/watchdog.h"
 #include <RadioLib.h>
 #include "hal/RPiPico/PicoHal.h"
@@ -33,7 +35,6 @@
 #define LORA_BUSY 15
 #define LORA_ANT_SW 17
 
-#define SERIAL_PORT uart0
 // Set which module is a master
 #define USER_PIN 7
 
@@ -67,21 +68,20 @@ int backoff_time = 0;
 PicoHal *hal = new PicoHal(spi0, LORA_MISO, LORA_MOSI, LORA_SCK);
 LR1121 radio = new Module(hal, LORA_CS, LORA_DIO1, LORA_RST, LORA_BUSY);
 
-static const uint32_t rfswitch_dio_pins[] = { 
-  RADIOLIB_LR11X0_DIO5, RADIOLIB_LR11X0_DIO6,
-  RADIOLIB_NC, RADIOLIB_NC, RADIOLIB_NC
+const uint32_t rfswitch_dio_pins[] = {
+RADIOLIB_LR11X0_DIO5, // Corresponds to RFSW0
+RADIOLIB_LR11X0_DIO6, // Corresponds to RFSW1
+RADIOLIB_NC, RADIOLIB_NC, RADIOLIB_NC
 };
 
-static const Module::RfSwitchMode_t rfswitch_table[] = {
-  // mode                  DIO5  DIO6 
-  { LR11x0::MODE_STBY,   { 0,  0,  0 } },
-  { LR11x0::MODE_RX,     { 0,  1,  0 } },
-  { LR11x0::MODE_TX,     { 1,  1,  0 } },
-  { LR11x0::MODE_TX_HP,  { 1,  0,  0 } },
-  { LR11x0::MODE_TX_HF,  { 0,  0,  0 } },
-  { LR11x0::MODE_GNSS,   { 0,  0,  1 } },
-  { LR11x0::MODE_WIFI,   { 0,  0,  0 } },
-  END_OF_MODE_TABLE,
+const Module::RfSwitchMode_t rfswitch_table[] = {
+// RadioLib Mode {RFSW0 (DIO5)}, {RFSW1 (DIO6)}
+{LR11x0::MODE_STBY,  {0, 0}},
+{LR11x0::MODE_RX,    {0, 1}}, // Ebyte SDK: .rx = RFSW1_HIGH
+{LR11x0::MODE_TX,    {1, 1}}, // Ebyte SDK: .tx = RFSW0_HIGH | RFSW1_HIGH
+{LR11x0::MODE_TX_HP, {1, 0}}, // Ebyte SDK: .tx_hp = RFSW0_HIGH
+{LR11x0::MODE_TX_HF, {1, 1}}, // From p7 table, seems consistent with TX LP
+END_OF_MODE_TABLE,
 };
 
 volatile bool interrupt_flag = false;
@@ -131,7 +131,7 @@ void parseSerialData();
 
 int main()
 {
-  stdio_init_all();
+  stdio_usb_init();
 
   gpio_init(PICO_DEFAULT_LED_PIN);
   gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
@@ -139,8 +139,6 @@ int main()
   gpio_init(USER_PIN);
   gpio_set_dir(USER_PIN, GPIO_IN);
   gpio_pull_up(USER_PIN);
-
-  uart_set_hw_flow(SERIAL_PORT, false, false);
 
   // Enable debug messages
   deb_serial.enabled = true;
@@ -167,10 +165,11 @@ int main()
     // Check timers
     curr_heartbeat_time = to_ms_since_boot(get_absolute_time());
     
-    if (curr_heartbeat_time - prev_heartbeat_time > 1000 && split_message)
-    {
-      stage = SENDING_PACKET;
-    }
+
+    // if (curr_heartbeat_time - prev_heartbeat_time > 1000 && !split_message)
+    // {
+    //   stage = SENDING_HEARTBEAT;
+    // }
     switch (stage)
     {
     case IDLE:
@@ -182,18 +181,18 @@ int main()
         stage = SENDING_PACKET; // Parse the serial data for command
         break;
       }
-      if (checkAckReceived())
-      {
-        retransmission_flag = false; // Reset retransmission flag if ACK received
-        stage = IDLE;
-      }
-      else
-      {
-        stage = SENDING_PACKET;
-        retransmission_flag = true; // Set retransmission flag if ACK not received
-        prev_heartbeat_time = to_ms_since_boot(get_absolute_time());
-        break;
-      }
+      // if (checkAckReceived())
+      // {
+      //   retransmission_flag = false; // Reset retransmission flag if ACK received
+      //   stage = IDLE;
+      // }
+      // else
+      // {
+      //   stage = SENDING_PACKET;
+      //   retransmission_flag = false; // Set retransmission flag if ACK not received
+      //   prev_heartbeat_time = to_ms_since_boot(get_absolute_time());
+      //   break;
+      // }
       if (!idle_listen_flag)
       {
         int state = radio.startReceive();
@@ -232,7 +231,9 @@ int main()
             printf("CRC calculated: %i\n", crc_calculated);
             printf("CRC from packet: %i\n", packet.control_sum);
             if (crc_calculated == packet.control_sum){
-              stage = SENDING_ACK;
+              //stage = SENDING_ACK;
+              stage = IDLE;
+              idle_listen_flag = false; // Start listening for new packets again
               break;
             }
             else {
@@ -398,7 +399,6 @@ int radioInit()
   // initialize the radio
   //int state = radio.begin(2400.0, 812, 7, 7, RADIOLIB_LR11X0_LORA_SYNC_WORD_PRIVATE, 3, 8, 0);
   int state = radio.begin();
-  radio.setFrequency(2400.0);
   if (state != RADIOLIB_ERR_NONE)
   {
     printf("failed, code %d\n", state);
@@ -406,6 +406,10 @@ int radioInit()
     return state;
   }
   printf("success!\n");
+  radio.setFrequency(2400.0);
+  radio.setBandwidth(500, true);
+  // radio.setPacketSentAction(intFlag);
+  // radio.setPacketReceivedAction(intFlag);
   radio.setIrqAction(intFlag);
   radio.setOutputPower(0);
   return state;
@@ -545,10 +549,11 @@ void readSerialData()
   static uint16_t ndx = 0;
   char endMarker = '\n';
   char rc;
-  while (uart_is_readable(SERIAL_PORT) && new_serial_data == false)
-  {
-    rc = uart_getc(SERIAL_PORT); // Read a character from the UART
 
+  while (tud_cdc_available() && new_serial_data == false)
+  {
+    printf("Reading serial data...\n");
+    rc = getchar();
     if (rc != endMarker)
     {
       serial_received_chars[ndx] = rc;
@@ -561,6 +566,7 @@ void readSerialData()
     else
     {
       serial_received_chars[ndx] = '\0'; // terminate the string
+      printf("Serial data received: %s\n", serial_received_chars);
       if (serial_received_chars[0] == '/' && ndx > 1)
       {
         parseSerialData();
