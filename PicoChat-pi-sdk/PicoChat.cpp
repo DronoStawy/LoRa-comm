@@ -46,11 +46,11 @@ const uint32_t rfswitch_dio_pins[] = {
 
 const Module::RfSwitchMode_t rfswitch_table[] = {
     // RadioLib Mode {RFSW0 (DIO5)}, {RFSW1 (DIO6)}
-    {LR11x0::MODE_STBY, {0, 0}},
-    {LR11x0::MODE_RX, {0, 1}},    // Ebyte SDK: .rx = RFSW1_HIGH
-    {LR11x0::MODE_TX, {1, 1}},    // Ebyte SDK: .tx = RFSW0_HIGH | RFSW1_HIGH
-    {LR11x0::MODE_TX_HP, {1, 0}}, // Ebyte SDK: .tx_hp = RFSW0_HIGH
-    {LR11x0::MODE_TX_HF, {1, 1}}, // From p7 table, seems consistent with TX LP
+    {LR11x0::MODE_STBY,   {0, 0}},
+    {LR11x0::MODE_RX,     {0, 1}},    // Ebyte SDK: .rx = RFSW1_HIGH
+    {LR11x0::MODE_TX,     {1, 1}},    // Ebyte SDK: .tx = RFSW0_HIGH | RFSW1_HIGH
+    {LR11x0::MODE_TX_HP,  {1, 0}}, // Ebyte SDK: .tx_hp = RFSW0_HIGH
+    {LR11x0::MODE_TX_HF,  {1, 1}}, // From p7 table, seems consistent with TX LP
     END_OF_MODE_TABLE,
 };
 
@@ -141,7 +141,6 @@ int main()
           }
           else
           {
-            // printf("Unknown packet type\n");
             stage = IDLE;
             break;
           }
@@ -184,7 +183,6 @@ int main()
       }
       else
       {
-        printf("Channel busy, waiting...\n");
         stage = SENDING_PACKET; // Go back to IDLE state if channel is busy
         break;
       }
@@ -192,7 +190,6 @@ int main()
     default:
       break;
     }
-    sleep_ms(1);
   }
   return (0);
 }
