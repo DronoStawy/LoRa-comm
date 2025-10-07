@@ -1,17 +1,3 @@
-/*
-  TO DO
-  - password as the only thing needed for creating chat and joining --------- []
-  - messages many to many with retransmission ------------------------------- []
-  - visible user status (obline/offline) ------------------------------------ []
-  - read indication --------------------------------------------------------- []
-  - CSMA - Carrier-Sense Multiple Access ------------------------------------ [x] https://nws.sg/amalinda/lmac/
-  - encrypted messages ------------------------------------------------------ []
-  - ACK for receiving message and changing channel/spreading factor --------- []
-  - FHSS - frequency hopping ------------------------------------------------ []
-*/
-
-// nowy pakiet 1B - typ  8B - payload  4B - sterowanie silnikami
-
 #include <pico/stdlib.h>
 #include <pico/rand.h>
 #include <pico/stdio_usb.h>
@@ -20,13 +6,10 @@
 #include <RadioLib.h>
 #include "hal/RPiPico/PicoHal.h"
 #include "packets/packets.hpp"
-// #include <aes.hpp>
 #include <chrono>
 #include <thread>
 #include <string>
 #include <tusb.h>
-// Pico - z kabelkiem
-// Chat - bez kabelka
 
 #define LORA_SCK 18
 #define LORA_MISO 16
@@ -37,48 +20,38 @@
 #define LORA_BUSY 15
 #define LORA_ANT_SW 17
 
-// Set which module is a master
-
-// Set ACK timeout to 2 seconds
-#define ACK_TIMEOUT_MS 1
+#define ACK_TIMEOUT_MS 50
 
 // CSMA timing parameters
-#define CSMA_BACKOFF_MIN_MS 50
-#define CSMA_BACKOFF_MAX_MS 300
-
-using namespace std::this_thread; // sleep_for, sleep_until
-using namespace std::chrono;      // nanoseconds, system_clock, seconds
+#define CSMA_BACKOFF_MIN_MS 2
+#define CSMA_BACKOFF_MAX_MS 10
 
 // ACK timing variables
 uint32_t curr_ack_check_time = 0;
 uint32_t prev_ack_check_time = 0;
 
-// Heartbeat timing variables
-uint32_t curr_heartbeat_time = 0;
-uint32_t prev_heartbeat_time = 0;
-
 // CSMA timing variables
 uint32_t curr_csma_time = 0;
 uint32_t prev_csma_time = 0;
 int backoff_time = 0;
+
 // create a new instance of the HAL class
 PicoHal *hal = new PicoHal(spi0, LORA_MISO, LORA_MOSI, LORA_SCK);
 LR1121 radio = new Module(hal, LORA_CS, LORA_DIO1, LORA_RST, LORA_BUSY);
 
 const uint32_t rfswitch_dio_pins[] = {
-RADIOLIB_LR11X0_DIO5, // Corresponds to RFSW0
-RADIOLIB_LR11X0_DIO6, // Corresponds to RFSW1
-RADIOLIB_NC, RADIOLIB_NC, RADIOLIB_NC
-};
+    RADIOLIB_LR11X0_DIO5, // Corresponds to RFSW0
+    RADIOLIB_LR11X0_DIO6, // Corresponds to RFSW1
+    RADIOLIB_NC, RADIOLIB_NC, RADIOLIB_NC};
 
 const Module::RfSwitchMode_t rfswitch_table[] = {
-// RadioLib Mode {RFSW0 (DIO5)}, {RFSW1 (DIO6)}
-{LR11x0::MODE_STBY,  {0, 0}},
-{LR11x0::MODE_RX,    {0, 1}}, // Ebyte SDK: .rx = RFSW1_HIGH
-{LR11x0::MODE_TX,    {1, 1}}, // Ebyte SDK: .tx = RFSW0_HIGH | RFSW1_HIGH
-{LR11x0::MODE_TX_HP, {1, 0}}, // Ebyte SDK: .tx_hp = RFSW0_HIGH
-{LR11x0::MODE_TX_HF, {1, 1}}, // From p7 table, seems consistent with TX LP
-END_OF_MODE_TABLE,
+    // RadioLib Mode {RFSW0 (DIO5)}, {RFSW1 (DIO6)}
+    {LR11x0::MODE_STBY, {0, 0}},
+    {LR11x0::MODE_RX, {0, 1}},    // Ebyte SDK: .rx = RFSW1_HIGH
+    {LR11x0::MODE_TX, {1, 1}},    // Ebyte SDK: .tx = RFSW0_HIGH | RFSW1_HIGH
+    {LR11x0::MODE_TX_HP, {1, 0}}, // Ebyte SDK: .tx_hp = RFSW0_HIGH
+    {LR11x0::MODE_TX_HF, {1, 1}}, // From p7 table, seems consistent with TX LP
+    END_OF_MODE_TABLE,
 };
 
 volatile bool interrupt_flag = false;
@@ -88,8 +61,7 @@ bool sending_packet_flag = false;
 bool sending_ack_flag = false;
 
 bool new_serial_data = false;
-const uint16_t char_buf_size = 1200;
-char serial_received_chars[char_buf_size];
+char serial_received_chars[PAYLOAD_SIZE];
 
 // Packet variables
 bool retransmission_flag = false; // flag to indicate if the message is being retransmitted
@@ -117,46 +89,30 @@ void parseSerialData();
 int main()
 {
   stdio_usb_init();
-
   gpio_init(PICO_DEFAULT_LED_PIN);
   gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
 
-
-  // Initialize timers
   prev_ack_check_time = to_ms_since_boot(get_absolute_time());
-  prev_heartbeat_time = to_ms_since_boot(get_absolute_time());
 
   radioInit();
   transmission_stage stage = IDLE;
-  sleep_ms(randomRange(100, 500)); // Random delay to avoid collisions at startup
 
   for (;;)
   {
-    // printf("DZIALA\n");
-    //  Check timers
     switch (stage)
     {
     case IDLE:
     {
       ledOff();
-      readSerialData(); // Read serial data if available
-      if (new_serial_data)
+      if (!waiting_for_ack_flag)
       {
-        stage = SENDING_PACKET; // Parse the serial data for command
+        readSerialData();
+      }
+      if (new_serial_data && !waiting_for_ack_flag)
+      {
+        stage = SENDING_PACKET;
         break;
       }
-      // if (checkAckReceived())
-      // {
-      //   retransmission_flag = false; // Reset retransmission flag if ACK received
-      //   stage = IDLE;
-      // }
-      // else
-      // {
-      //   stage = SENDING_PACKET;
-      //   retransmission_flag = false; // Set retransmission flag if ACK not received
-      //   prev_heartbeat_time = to_ms_since_boot(get_absolute_time());
-      //   break;
-      // }
       if (!idle_listen_flag)
       {
         int state = radio.startReceive();
@@ -174,40 +130,18 @@ int main()
           if (packet.type == PACKET_TYPE_MESSAGE)
           {
             ledOn();
-            printf("Type: %i\n", packet.type);
-            printf("Length: %i\n", packet.length);
-            printf("Payload: %s\n", packet.payload);
+            printf("%s", packet.payload);
             stage = SENDING_ACK;
-            // if (crc_calculated == packet.control_sum)
-            // {
-            //   stage = SENDING_ACK;
-            //   break;
-            // }
-            // else
-            // {
-            //   stage = IDLE; // gdy crc się nie zgadza, to po prostu nie wysyłamy potwierdzenia odbioru informacji
-            //   break;
-            // }
           }
           else if (packet.type == PACKET_TYPE_ACK)
           {
-            // printf("ACK received from %s\n", packet.user_name);
-            // deb_serial.serialACKReceived(packet.id);
-            printf("ACK received\n");
-            printf("Type: %i\n", packet.type);
-            printf("Length: %i\n", packet.length);
-            printf("Payload: %s\n", packet.payload);
-            // Update status of the user who sent the ACK
-            // updateUserStatus(packet.user_name);
-            // interrupt_flag = false;
             waiting_for_ack_flag = false; // Reset the waiting for ACK flag
             stage = IDLE;
             break;
           }
           else
           {
-            printf("Unknown packet type\n");
-            // interrupt_flag = false;
+            // printf("Unknown packet type\n");
             stage = IDLE;
             break;
           }
@@ -219,13 +153,9 @@ int main()
     {
       if (doCSMA())
       {
-        // id = (id != 255) ? id + 1 : 0; // Increment ID, reset to 0 if it reaches 255
         Packet packet(PACKET_TYPE_ACK, 3, (const uint8_t *)"ACK");
-        printf("Sending ACK...\n");
-        printf("Type: %i\n", packet.type);
-        printf("Payload: %s\n", packet.payload);
         int state = radio.transmit(packet.toByteArray(), PACKET_SIZE);
-        checkState(state);        // do odkomentowania
+        checkState(state);
         idle_listen_flag = false; // Start listening for new packets again
         interrupt_flag = false;   // Reset the interrupt flag
         stage = IDLE;
@@ -233,9 +163,7 @@ int main()
       }
       else
       {
-        printf("Channel busy, waiting...\n");
-        stage = SENDING_ACK; // Go back to IDLE state if channel is busy
-        printf("ACK not sent, waiting for channel to be free...\n");
+        stage = SENDING_ACK;
         break;
       }
     }
@@ -245,17 +173,12 @@ int main()
       {
         ledOn();
         Packet packet(PACKET_TYPE_MESSAGE, length, (const uint8_t *)serial_received_chars);
-        printf("Sending packet...\n");
-        printf("Type: %i\n", packet.type);
-        printf("Payload: %s\n", packet.payload);
         int state = radio.transmit(packet.toByteArray(), PACKET_SIZE);
         checkState(state);
-        printf("Packet sent\n");
-        updateAckTimer(); // Start waiting for ACK after sending the packet
-
-        new_serial_data = false;  // Reset the flag after sending
+        updateAckTimer();         // Start waiting for ACK after sending the packet
         interrupt_flag = false;   // Reset the interrupt flag
         idle_listen_flag = false; // Start listening for new packets again
+        waiting_for_ack_flag = true;
         stage = IDLE;
         break;
       }
@@ -266,25 +189,23 @@ int main()
         break;
       }
     }
-
     default:
       break;
     }
+    sleep_ms(1);
   }
   return (0);
 }
 
 int radioInit()
 {
-  // initialize the radio
-  // int state = radio.begin(2400.0, 812, 7, 7, RADIOLIB_LR11X0_LORA_SYNC_WORD_PRIVATE, 3, 8, 0);
   int state = radio.begin();
   radio.setFrequency(2400.0);
-  radio.setBandwidth(200.0, true);
+  radio.setBandwidth(RADIOLIB_LR11X0_LORA_BW_406_25, true);
   radio.setSpreadingFactor(5);
   radio.setCRC(true);
   radio.setIrqAction(intFlag);
-  radio.setOutputPower(0);
+  radio.setOutputPower(10);
   radio.setRfSwitchTable(rfswitch_dio_pins, rfswitch_table);
 
   if (state != RADIOLIB_ERR_NONE)
@@ -293,8 +214,6 @@ int radioInit()
     gpio_put(PICO_DEFAULT_LED_PIN, 1);
     return state;
   }
-  printf("success!\n");
-
   return state;
 }
 
@@ -306,7 +225,6 @@ int checkState(int state)
     gpio_put(PICO_DEFAULT_LED_PIN, 1);
     return state;
   }
-  // printf("success!\n");
   return RADIOLIB_ERR_NONE;
 }
 
@@ -378,43 +296,14 @@ void updateAckTimer()
 
 void readSerialData()
 {
-  static uint16_t ndx = 0;
-  char endMarker = '\n';
-  char rc;
   length = 0;
-  while (tud_cdc_available() && !new_serial_data)
+  memset(serial_received_chars, 0, PAYLOAD_SIZE); // Clear the buffer
+  while (length < PAYLOAD_SIZE && tud_cdc_available() > 0)
   {
-    // printf("Reading serial data...\n");
-    //rc = getchar();
-    for (int i = 0; i < PAYLOAD_SIZE; i++)
-    {
-      if (!tud_cdc_available())
-      {
-        break;
-      }
-      length ++;
-      serial_received_chars[i] = getchar();
-    }
-    new_serial_data = true;
-
-
-    // if (rc != endMarker)
-    // {
-    //   serial_received_chars[ndx] = rc;
-    //   ndx++;
-    //   if (ndx >= char_buf_size)
-    //   {
-    //     ndx = char_buf_size - 1;
-    //   }
-    // }
-    // else
-    // {
-    //   // serial_received_chars[ndx] = '\0'; // terminate the string
-    //   // printf("Serial data received: %s\n", serial_received_chars);
-    //   ndx = 0;
-    //   new_serial_data = true;
-    // }
+    serial_received_chars[length] = getchar();
+    length++;
   }
+  new_serial_data = (length > 0);
 }
 
 void ledOn()
