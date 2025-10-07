@@ -77,30 +77,30 @@ FetchContent_Declare(
 )
 
 # TinyAES setup
-set(TINYAES_VERSION 1.0.0)
-FetchContent_Declare(
- TinyAES
- URL https://github.com/kokke/tiny-AES-c/archive/refs/tags/v${TINYAES_VERSION}.tar.gz
- FIND_PACKAGE_ARGS ${TINYAES_VERSION}
-)
-FetchContent_MakeAvailable(TinyAES)
+# set(TINYAES_VERSION 1.0.0)
+# FetchContent_Declare(
+#  TinyAES
+#  URL https://github.com/kokke/tiny-AES-c/archive/refs/tags/v${TINYAES_VERSION}.tar.gz
+#  FIND_PACKAGE_ARGS ${TINYAES_VERSION}
+# )
+# FetchContent_MakeAvailable(TinyAES)
 
 # Create a proper library target for TinyAES
-add_library(tiny_aes STATIC 
-    ${tinyaes_SOURCE_DIR}/aes.c
-)
-target_include_directories(tiny_aes PUBLIC 
-    ${tinyaes_SOURCE_DIR}
-)
+# add_library(tiny_aes STATIC 
+#     ${tinyaes_SOURCE_DIR}/aes.c
+# )
+# target_include_directories(tiny_aes PUBLIC 
+#     ${tinyaes_SOURCE_DIR}
+# )
 
 # Link everything
 target_link_libraries(PicoChat
  RadioLib
- tiny_aes
+#  tiny_aes
 )
 
 FetchContent_MakeAvailable(RadioLib)
-FetchContent_MakeAvailable(TinyAES)
+# FetchContent_MakeAvailable(TinyAES)
 
 pico_add_extra_outputs(PicoChat)
 
