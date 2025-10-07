@@ -40,7 +40,7 @@
 // Set which module is a master
 
 // Set ACK timeout to 2 seconds
-#define ACK_TIMEOUT_MS 5000
+#define ACK_TIMEOUT_MS 1
 
 // CSMA timing parameters
 #define CSMA_BACKOFF_MIN_MS 50
@@ -95,6 +95,8 @@ char serial_received_chars[char_buf_size];
 bool retransmission_flag = false; // flag to indicate if the message is being retransmitted
 uint8_t crc_calculated = 0;
 
+uint8_t length = 0;
+
 void intFlag()
 {
   interrupt_flag = true;
@@ -119,7 +121,6 @@ int main()
   gpio_init(PICO_DEFAULT_LED_PIN);
   gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
 
-  uart_set_hw_flow(SERIAL_PORT, false, false);
 
   // Initialize timers
   prev_ack_check_time = to_ms_since_boot(get_absolute_time());
@@ -174,6 +175,7 @@ int main()
           {
             ledOn();
             printf("Type: %i\n", packet.type);
+            printf("Length: %i\n", packet.length);
             printf("Payload: %s\n", packet.payload);
             stage = SENDING_ACK;
             // if (crc_calculated == packet.control_sum)
@@ -193,6 +195,7 @@ int main()
             // deb_serial.serialACKReceived(packet.id);
             printf("ACK received\n");
             printf("Type: %i\n", packet.type);
+            printf("Length: %i\n", packet.length);
             printf("Payload: %s\n", packet.payload);
             // Update status of the user who sent the ACK
             // updateUserStatus(packet.user_name);
@@ -217,7 +220,7 @@ int main()
       if (doCSMA())
       {
         // id = (id != 255) ? id + 1 : 0; // Increment ID, reset to 0 if it reaches 255
-        Packet packet(0, (const uint8_t *)"OKOKOKOK");
+        Packet packet(PACKET_TYPE_ACK, 3, (const uint8_t *)"ACK");
         printf("Sending ACK...\n");
         printf("Type: %i\n", packet.type);
         printf("Payload: %s\n", packet.payload);
@@ -241,7 +244,7 @@ int main()
       if (doCSMA())
       {
         ledOn();
-        Packet packet(2, (const uint8_t *)serial_received_chars);
+        Packet packet(PACKET_TYPE_MESSAGE, length, (const uint8_t *)serial_received_chars);
         printf("Sending packet...\n");
         printf("Type: %i\n", packet.type);
         printf("Payload: %s\n", packet.payload);
@@ -378,26 +381,39 @@ void readSerialData()
   static uint16_t ndx = 0;
   char endMarker = '\n';
   char rc;
-  while (tud_cdc_available() && new_serial_data == false)
+  length = 0;
+  while (tud_cdc_available() && !new_serial_data)
   {
     // printf("Reading serial data...\n");
-    rc = getchar();
-    if (rc != endMarker)
+    //rc = getchar();
+    for (int i = 0; i < PAYLOAD_SIZE; i++)
     {
-      serial_received_chars[ndx] = rc;
-      ndx++;
-      if (ndx >= char_buf_size)
+      if (!tud_cdc_available())
       {
-        ndx = char_buf_size - 1;
+        break;
       }
+      length ++;
+      serial_received_chars[i] = getchar();
     }
-    else
-    {
-      // serial_received_chars[ndx] = '\0'; // terminate the string
-      // printf("Serial data received: %s\n", serial_received_chars);
-      ndx = 0;
-      new_serial_data = true;
-    }
+    new_serial_data = true;
+
+
+    // if (rc != endMarker)
+    // {
+    //   serial_received_chars[ndx] = rc;
+    //   ndx++;
+    //   if (ndx >= char_buf_size)
+    //   {
+    //     ndx = char_buf_size - 1;
+    //   }
+    // }
+    // else
+    // {
+    //   // serial_received_chars[ndx] = '\0'; // terminate the string
+    //   // printf("Serial data received: %s\n", serial_received_chars);
+    //   ndx = 0;
+    //   new_serial_data = true;
+    // }
   }
 }
 

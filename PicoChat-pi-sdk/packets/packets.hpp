@@ -6,7 +6,7 @@
 
 //#define MAX_MESSAGE_LENGTH 249 // 256 byte max Lora packet size - 1 byte for id - 1 byte for length - 8 bytes for username - 1 byte for user name length
 #define PAYLOAD_SIZE 8
-#define PACKET_SIZE (1 + PAYLOAD_SIZE) // 1 byte for type + payload
+#define PACKET_SIZE (2 + PAYLOAD_SIZE) // 1 byte for type + payload
 #define PACKET_TYPE_ACK 0
 #define PACKET_TYPE_MESSAGE 1
 
@@ -32,33 +32,33 @@ class Packet
 {
 public:
   uint8_t type; // 
+  uint8_t length;
   uint8_t payload[PAYLOAD_SIZE];
 
 
-  Packet(uint8_t type, const uint8_t* payload)
+  Packet(uint8_t type, uint8_t length, const uint8_t* payload)
   {
     this->type = type;
+    this->length = length;
     memcpy(this->payload, payload, sizeof(this->payload));
   }
 
   Packet(uint8_t *buf)
   {
     this->type = buf[0];
-    memcpy(payload, &buf[1], PAYLOAD_SIZE);
+    this->length = buf[1];
+    memcpy(payload, &buf[2], PAYLOAD_SIZE);
   }
 
 
   uint8_t *toByteArray()
   {
-    uint8_t buffer[1 + PAYLOAD_SIZE];
+    uint8_t *buffer = (uint8_t *)malloc(PACKET_SIZE);
     if (buffer != NULL)
     {
       buffer[0] = type;
-      memcpy(&buffer[1], payload, PAYLOAD_SIZE);
-    }
-    else
-    {
-      return NULL; // Return NULL if memory allocation fails
+      buffer[1] = length;
+      memcpy(&buffer[2], payload, PAYLOAD_SIZE);
     }
     return buffer;
   }
