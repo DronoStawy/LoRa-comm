@@ -130,7 +130,8 @@ int main()
           if (packet.type == PACKET_TYPE_MESSAGE)
           {
             ledOn();
-            printf("%s", packet.payload);
+            tud_cdc_write(packet.payload, packet.length);
+            tud_cdc_write_flush();
             stage = SENDING_ACK;
           }
           else if (packet.type == PACKET_TYPE_ACK)
