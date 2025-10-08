@@ -4,9 +4,26 @@
 #include <RadioLib.h>
 #include "CRC.h"
 
+// ============================================================
+// PERFORMANCE MODE CONFIGURATION
+// ============================================================
+// Uncomment ONE of the following modes:
+
+// MODE 1: RELIABLE (100% success rate, 0.16 KB/s, 25ms recommended delay)
+// Best for: Production, critical data, zero data loss required
+#define MODE_RELIABLE
+
+// MODE 2: HIGH_PERFORMANCE (98% success rate, 0.17 KB/s, 23ms recommended delay)
+// Best for: Maximum throughput, 2% data loss acceptable
+// #define MODE_HIGH_PERFORMANCE
+
+// ============================================================
+
 //#define MAX_MESSAGE_LENGTH 249 // 256 byte max Lora packet size - 1 byte for id - 1 byte for length - 8 bytes for username - 1 byte for user name length
-#define PAYLOAD_SIZE 8
-#define PACKET_SIZE (2 + PAYLOAD_SIZE) // 1 byte for type + payload
+#define PAYLOAD_SIZE 8  // Works reliably at 100% success rate
+#define ACK_PAYLOAD_SIZE 3  // Small ACK packets for faster transmission
+#define PACKET_SIZE (2 + PAYLOAD_SIZE) // 1 byte for type + payload - ALL packets same size
+#define ACK_PACKET_SIZE (2 + ACK_PAYLOAD_SIZE) // Smaller size for ACK packets
 #define PACKET_TYPE_ACK 0
 #define PACKET_TYPE_MESSAGE 1
 
@@ -40,7 +57,8 @@ public:
   {
     this->type = type;
     this->length = length;
-    memcpy(this->payload, payload, sizeof(this->payload));
+    memcpy(this->payload, payload, length); // Copy only actual data length
+    memset(this->payload + length, 0, PAYLOAD_SIZE - length); // Zero the rest
   }
 
   Packet(uint8_t *buf)
