@@ -21,6 +21,7 @@
 #define LORA_ANT_SW 17
 
 #define ACK_TIMEOUT_MS 50
+#define ACK_RETRIES 2
 
 // CSMA timing parameters
 #define CSMA_BACKOFF_MIN_MS 2
@@ -29,6 +30,7 @@
 // ACK timing variables
 uint32_t curr_ack_check_time = 0;
 uint32_t prev_ack_check_time = 0;
+uint8_t ack_retries = 0;
 
 // CSMA timing variables
 uint32_t curr_csma_time = 0;
@@ -46,11 +48,11 @@ const uint32_t rfswitch_dio_pins[] = {
 
 const Module::RfSwitchMode_t rfswitch_table[] = {
     // RadioLib Mode {RFSW0 (DIO5)}, {RFSW1 (DIO6)}
-    {LR11x0::MODE_STBY,   {0, 0}},
-    {LR11x0::MODE_RX,     {0, 1}},    // Ebyte SDK: .rx = RFSW1_HIGH
-    {LR11x0::MODE_TX,     {1, 1}},    // Ebyte SDK: .tx = RFSW0_HIGH | RFSW1_HIGH
-    {LR11x0::MODE_TX_HP,  {1, 0}}, // Ebyte SDK: .tx_hp = RFSW0_HIGH
-    {LR11x0::MODE_TX_HF,  {1, 1}}, // From p7 table, seems consistent with TX LP
+    {LR11x0::MODE_STBY, {0, 0}},
+    {LR11x0::MODE_RX, {0, 1}},    // Ebyte SDK: .rx = RFSW1_HIGH
+    {LR11x0::MODE_TX, {1, 1}},    // Ebyte SDK: .tx = RFSW0_HIGH | RFSW1_HIGH
+    {LR11x0::MODE_TX_HP, {1, 0}}, // Ebyte SDK: .tx_hp = RFSW0_HIGH
+    {LR11x0::MODE_TX_HF, {1, 1}}, // From p7 table, seems consistent with TX LP
     END_OF_MODE_TABLE,
 };
 
@@ -104,7 +106,30 @@ int main()
     case IDLE:
     {
       ledOff();
-      if (!waiting_for_ack_flag)
+      if (waiting_for_ack_flag)
+      {
+        curr_ack_check_time = to_ms_since_boot(get_absolute_time());
+        if (curr_ack_check_time - prev_ack_check_time > ACK_TIMEOUT_MS)
+        {
+          if (ack_retries < ACK_RETRIES)
+          {
+            //printf("ACK timeout, resending packet...\n");
+            waiting_for_ack_flag = true; // Reset the flag
+            ack_retries++;
+            stage = SENDING_PACKET;
+            break;
+          }
+          else
+          {
+            //printf("Max ACK retries reached, giving up...\n");
+            waiting_for_ack_flag = false; // Reset the flag
+            ack_retries = 0;              // Reset the retry counter
+            stage = IDLE;
+            break;
+          }
+        }
+      }
+      else
       {
         readSerialData();
       }
@@ -136,6 +161,7 @@ int main()
           }
           else if (packet.type == PACKET_TYPE_ACK)
           {
+            prev_ack_check_time = to_ms_since_boot(get_absolute_time());
             waiting_for_ack_flag = false; // Reset the waiting for ACK flag
             stage = IDLE;
             break;
@@ -276,22 +302,6 @@ bool doCSMA()
   }
 }
 
-void goToBootloader()
-{
-  watchdog_hw->scratch[0] = 1;
-  watchdog_reboot(0, 0, 10);
-  while (1)
-  {
-    continue;
-  }
-}
-
-void updateAckTimer()
-{
-  prev_ack_check_time = to_ms_since_boot(get_absolute_time());
-  waiting_for_ack_flag = true; // Set the flag to wait for ACK
-}
-
 void readSerialData()
 {
   length = 0;
@@ -311,40 +321,4 @@ void ledOn()
 void ledOff()
 {
   gpio_put(PICO_DEFAULT_LED_PIN, 0);
-}
-
-bool checkAckReceived()
-{
-  if (waiting_for_ack_flag)
-  {
-    curr_ack_check_time = to_ms_since_boot(get_absolute_time());
-    if (curr_ack_check_time - prev_ack_check_time > ACK_TIMEOUT_MS)
-    {
-      printf("ACK timeout, resending packet...\n");
-      waiting_for_ack_flag = false; // Reset the flag
-      return false;                 // ACK not received
-    }
-    else
-    {
-      return true; // ACK received within timeout
-    }
-  }
-  return true; // No ACK waiting, return true to avoid blocking
-}
-
-void parseSerialData()
-{
-  // Parse the serial data for commands
-  if (strcmp(serial_received_chars, "/bootloader") == 0)
-  {
-    goToBootloader();
-  }
-  else if (strcmp(serial_received_chars, "/test") == 0)
-  {
-    printf("Test command received\n");
-  }
-  else
-  {
-    printf("Unknown command: %s\n", serial_received_chars);
-  }
 }
