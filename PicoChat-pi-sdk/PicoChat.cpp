@@ -124,6 +124,7 @@ int main()
           {
             //printf("Max ACK retries reached, giving up...\n");
             waiting_for_ack_flag = false; // Reset the flag
+            new_serial_data = false; // Clear the flag - give up on this message
             ack_retries = 0;              // Reset the retry counter
             stage = IDLE;
             break;
@@ -132,7 +133,11 @@ int main()
       }
       else
       {
-        readSerialData();
+        // Czytaj serial tylko jeśli nie ma jeszcze nowych danych w buforze
+        if (!new_serial_data)
+        {
+          readSerialData();
+        }
       }
       if (new_serial_data && !waiting_for_ack_flag)
       {
@@ -164,6 +169,8 @@ int main()
           {
             prev_ack_check_time = to_ms_since_boot(get_absolute_time());
             waiting_for_ack_flag = false; // Reset the waiting for ACK flag
+            new_serial_data = false; // Clear the flag - message successfully sent
+            ack_retries = 0; // Reset retry counter
             stage = IDLE;
             break;
           }
