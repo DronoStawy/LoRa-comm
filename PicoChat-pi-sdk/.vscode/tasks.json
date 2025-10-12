@@ -24,7 +24,8 @@
             "args": [
                 "load",
                 "${command:raspberry-pi-pico.launchTargetPath}",
-                "-fx"
+                "--force",
+                "-x"
             ],
             "presentation": {
                 "reveal": "always",
@@ -33,6 +34,25 @@
             "problemMatcher": [],
             "windows": {
                 "command": "${env:USERPROFILE}/.pico-sdk/picotool/2.2.0-a4/picotool/picotool.exe"
+            }
+        },
+        {
+            "label": "🚀 Flash Multiple Devices",
+            "type": "shell",
+            "command": "python3",
+            "args": [
+                "${workspaceFolder}/flash_multiple.py"
+            ],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "focus": true
+            },
+            "problemMatcher": [],
+            "dependsOn": ["Compile Project"],
+            "group": {
+                "kind": "build",
+                "isDefault": false
             }
         },
         {

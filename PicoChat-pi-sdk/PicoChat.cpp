@@ -33,7 +33,6 @@ uint32_t prev_ack_check_time = 0;
 uint8_t ack_retries = 0;
 
 // CSMA timing variables
-uint32_t curr_csma_time = 0;
 uint32_t prev_csma_time = 0;
 int backoff_time = 0;
 
@@ -48,11 +47,11 @@ const uint32_t rfswitch_dio_pins[] = {
 
 const Module::RfSwitchMode_t rfswitch_table[] = {
     // RadioLib Mode {RFSW0 (DIO5)}, {RFSW1 (DIO6)}
-    {LR11x0::MODE_STBY, {0, 0}},
-    {LR11x0::MODE_RX, {0, 1}},    // Ebyte SDK: .rx = RFSW1_HIGH
-    {LR11x0::MODE_TX, {1, 1}},    // Ebyte SDK: .tx = RFSW0_HIGH | RFSW1_HIGH
-    {LR11x0::MODE_TX_HP, {1, 0}}, // Ebyte SDK: .tx_hp = RFSW0_HIGH
-    {LR11x0::MODE_TX_HF, {1, 1}}, // From p7 table, seems consistent with TX LP
+    {LR11x0::MODE_STBY,   {0, 0}},
+    {LR11x0::MODE_RX,     {0, 1}},    // Ebyte SDK: .rx = RFSW1_HIGH
+    {LR11x0::MODE_TX,     {1, 1}},    // Ebyte SDK: .tx = RFSW0_HIGH | RFSW1_HIGH
+    {LR11x0::MODE_TX_HP,  {1, 0}}, // Ebyte SDK: .tx_hp = RFSW0_HIGH
+    {LR11x0::MODE_TX_HF,  {1, 1}}, // From p7 table, seems consistent with TX LP
     END_OF_MODE_TABLE,
 };
 
@@ -81,7 +80,6 @@ int radioInit();
 int checkState(int state);
 int randomRange(int min, int max);
 bool doCSMA();
-void updateAckTimer();
 void readSerialData();
 void ledOn();
 void ledOff();
@@ -201,7 +199,7 @@ int main()
         Packet packet(PACKET_TYPE_MESSAGE, length, (const uint8_t *)serial_received_chars);
         int state = radio.transmit(packet.toByteArray(), PACKET_SIZE);
         checkState(state);
-        updateAckTimer();         // Start waiting for ACK after sending the packet
+        prev_ack_check_time = to_ms_since_boot(get_absolute_time()); // Start waiting for ACK after sending the packet
         interrupt_flag = false;   // Reset the interrupt flag
         idle_listen_flag = false; // Start listening for new packets again
         waiting_for_ack_flag = true;
@@ -271,7 +269,7 @@ int randomRange(int min, int max)
 bool doCSMA()
 {
   // Check if enough time has passed since the last CSMA check
-  curr_csma_time = to_ms_since_boot(get_absolute_time());
+  uint32_t curr_csma_time = to_ms_since_boot(get_absolute_time());
   if (curr_csma_time - prev_csma_time >= backoff_time)
   {
     int state = radio.scanChannel();
@@ -286,8 +284,8 @@ bool doCSMA()
     else if (state == RADIOLIB_CHANNEL_FREE)
     {
       // Perform transmission
-      return true; // Channel is free, proceed with transmission
       prev_csma_time = curr_csma_time;
+      return true; // Channel is free, proceed with transmission
     }
     else
     {
