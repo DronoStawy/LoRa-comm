@@ -34,33 +34,57 @@ public:
   uint8_t type; // 
   uint8_t length;
   uint8_t payload[PAYLOAD_SIZE];
+  
+  // Statyczny bufor dla toByteArray() - eliminuje wyciek pamięci
+  static uint8_t tx_buffer[PACKET_SIZE];
 
-
+  /**
+   * @brief Konstruktor pakietu z danymi
+   * @param type Typ pakietu (ACK lub MESSAGE)
+   * @param length Rzeczywista długość danych w payload
+   * @param payload Wskaźnik do danych (kopiuje tylko 'length' bajtów)
+   * @note Optymalizacja: kopiuje tylko length bajtów zamiast całego bufora
+   */
   Packet(uint8_t type, uint8_t length, const uint8_t* payload)
   {
     this->type = type;
     this->length = length;
-    memcpy(this->payload, payload, sizeof(this->payload));
+    // Kopiuj tylko rzeczywistą ilość danych (length), nie cały bufor
+    if (length > 0 && length <= PAYLOAD_SIZE) {
+      memcpy(this->payload, payload, length);
+    }
   }
 
+  /**
+   * @brief Konstruktor pakietu z odebranego bufora
+   * @param buf Bufor zawierający dane pakietu
+   * @note Optymalizacja: kopiuje tylko length bajtów na podstawie buf[1]
+   */
   Packet(uint8_t *buf)
   {
     this->type = buf[0];
     this->length = buf[1];
-    memcpy(payload, &buf[2], PAYLOAD_SIZE);
+    // Kopiuj tylko rzeczywistą ilość danych zapisaną w length
+    if (this->length > 0 && this->length <= PAYLOAD_SIZE) {
+      memcpy(payload, &buf[2], this->length);
+    }
   }
 
-
+  /**
+   * @brief Konwertuje pakiet do tablicy bajtów
+   * @return Wskaźnik do statycznego bufora tx_buffer (nie wymaga free!)
+   * @note Używa statycznego bufora - nie trzeba zwalniać pamięci
+   * @note Optymalizacja: kopiuje tylko length bajtów zamiast całego PAYLOAD_SIZE
+   */
   uint8_t *toByteArray()
   {
-    uint8_t *buffer = (uint8_t *)malloc(PACKET_SIZE);
-    if (buffer != NULL)
-    {
-      buffer[0] = type;
-      buffer[1] = length;
-      memcpy(&buffer[2], payload, PAYLOAD_SIZE);
+    tx_buffer[0] = type;
+    tx_buffer[1] = length;
+    // Kopiuj tylko rzeczywistą ilość danych (length), nie cały bufor
+    if (length > 0 && length <= PAYLOAD_SIZE) {
+      memcpy(&tx_buffer[2], payload, length);
     }
-    return buffer;
+    return tx_buffer;
   }
 };
 
@@ -133,3 +157,6 @@ public:
 // class SerialMessages{
 
 // 
+
+// Definicja statycznego bufora transmisyjnego dla klasy Packet
+uint8_t Packet::tx_buffer[PACKET_SIZE];

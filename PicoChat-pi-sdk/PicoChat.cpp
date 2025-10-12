@@ -36,6 +36,9 @@ uint8_t ack_retries = 0;
 uint32_t prev_csma_time = 0;
 int backoff_time = 0;
 
+// Zmienna do śledzenia stanu LED (optymalizacja - unikanie nadmiarowych wywołań GPIO)
+bool led_state = false;
+
 // create a new instance of the HAL class
 PicoHal *hal = new PicoHal(spi0, LORA_MISO, LORA_MOSI, LORA_SCK);
 LR1121 radio = new Module(hal, LORA_CS, LORA_DIO1, LORA_RST, LORA_BUSY);
@@ -312,11 +315,26 @@ void readSerialData()
   new_serial_data = (length > 0);
 }
 
+/**
+ * @brief Włącza LED (tylko jeśli jeszcze nie jest włączony)
+ */
 void ledOn()
 {
-  gpio_put(PICO_DEFAULT_LED_PIN, 1);
+  if (!led_state)
+  {
+    gpio_put(PICO_DEFAULT_LED_PIN, 1);
+    led_state = true;
+  }
 }
+
+/**
+ * @brief Wyłącza LED (tylko jeśli jest włączony)
+ */
 void ledOff()
 {
-  gpio_put(PICO_DEFAULT_LED_PIN, 0);
+  if (led_state)
+  {
+    gpio_put(PICO_DEFAULT_LED_PIN, 0);
+    led_state = false;
+  }
 }
