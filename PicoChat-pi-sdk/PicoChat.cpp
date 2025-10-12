@@ -20,7 +20,7 @@
 #define LORA_BUSY 15
 #define LORA_ANT_SW 17
 
-#define ACK_TIMEOUT_MS 50
+#define ACK_TIMEOUT_MS 100
 #define ACK_RETRIES 2
 
 // CSMA timing parameters
@@ -53,8 +53,8 @@ const Module::RfSwitchMode_t rfswitch_table[] = {
     {LR11x0::MODE_STBY,   {0, 0}},
     {LR11x0::MODE_RX,     {0, 1}},    // Ebyte SDK: .rx = RFSW1_HIGH
     {LR11x0::MODE_TX,     {1, 1}},    // Ebyte SDK: .tx = RFSW0_HIGH | RFSW1_HIGH
-    {LR11x0::MODE_TX_HP,  {1, 0}}, // Ebyte SDK: .tx_hp = RFSW0_HIGH
-    {LR11x0::MODE_TX_HF,  {1, 1}}, // From p7 table, seems consistent with TX LP
+    {LR11x0::MODE_TX_HP,  {1, 0}},    // Ebyte SDK: .tx_hp = RFSW0_HIGH
+    {LR11x0::MODE_TX_HF,  {1, 1}},    // From p7 table, seems consistent with TX LP
     END_OF_MODE_TABLE,
 };
 
@@ -66,10 +66,6 @@ bool sending_ack_flag = false;
 
 bool new_serial_data = false;
 char serial_received_chars[PAYLOAD_SIZE];
-
-// Packet variables
-bool retransmission_flag = false; // flag to indicate if the message is being retransmitted
-uint8_t crc_calculated = 0;
 
 uint8_t length = 0;
 

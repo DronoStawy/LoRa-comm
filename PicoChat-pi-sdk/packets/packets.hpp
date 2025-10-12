@@ -5,7 +5,7 @@
 #include "CRC.h"
 
 //#define MAX_MESSAGE_LENGTH 249 // 256 byte max Lora packet size - 1 byte for id - 1 byte for length - 8 bytes for username - 1 byte for user name length
-#define PAYLOAD_SIZE 8
+#define PAYLOAD_SIZE 20
 #define PACKET_SIZE (2 + PAYLOAD_SIZE) // 1 byte for type + payload
 #define PACKET_TYPE_ACK 0
 #define PACKET_TYPE_MESSAGE 1
